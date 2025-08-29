@@ -21,9 +21,10 @@ export default function Home() {
 
   async function signIn() {
     const { error } = await supabase.auth.signInWithPassword({
-      email: "teste@teste.com", // cadastrado no Supabase
-      password: "123456",
+      email: "teste@teste.com",   // usuário criado no Supabase
+      password: "123456",         // senha criada no Supabase
     });
+
     if (!error) {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
