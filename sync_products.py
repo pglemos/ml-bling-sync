@@ -36,58 +36,65 @@ def fetch_category_path(cat_id: str) -> Dict[str, Any]:
     }
 
 def main(user_id: Optional[str] = None):
-    # Token do ML
-    ml = get_integration_tokens("ml", user_id)
-    print(f"🔑 Token Mercado Livre: {ml['access_token'][:30]} ...")
+    try:
+        # Token do ML
+        ml = get_integration_tokens("ml", user_id)
+        print(f"🔑 Token Mercado Livre: {ml['access_token'][:30]} ...")
 
-    # Busca produtos e filtra em Python (simplifica nulos)
-    res = supabase.table("products").select(
-        "id, sku, ml_item_id, ml_category_id, ml_category_path"
-    ).execute()
-    products = res.data or []
+        # Busca produtos e filtra em Python (simplifica nulos)
+        res = supabase.table("products").select(
+            "id, sku, ml_item_id, ml_category_id, ml_category_path"
+        ).execute()
+        products = res.data or []
 
-    pendentes = [
-        p for p in products
-        if p.get("ml_item_id") and (not p.get("ml_category_id") or not p.get("ml_category_path"))
-    ]
+        pendentes = [
+            p for p in products
+            if p.get("ml_item_id") and (not p.get("ml_category_id") or not p.get("ml_category_path"))
+        ]
 
-    if not pendentes:
-        print("✅ Nenhum produto pendente (verifique se 'ml_item_id' está preenchido).")
-        return
+        if not pendentes:
+            print("✅ Nenhum produto pendente (verifique se 'ml_item_id' está preenchido).")
+            return
 
-    ok = 0
-    fail = 0
+        ok = 0
+        fail = 0
 
-    for p in pendentes:
-        item_id = str(p["ml_item_id"])
-        try:
-            cat_id = fetch_item_category(ml["access_token"], item_id)
-            if not cat_id:
+        for p in pendentes:
+            item_id = str(p["ml_item_id"])
+            try:
+                cat_id = fetch_item_category(ml["access_token"], item_id)
+                if not cat_id:
+                    fail += 1
+                    continue
+
+                cat = fetch_category_path(cat_id)
+
+                update_payload = {
+                    "ml_category_id": cat["id"],
+                    "ml_category_name": cat["name"],
+                    "ml_category_path": cat["path_str"],
+                    "ml_category_hierarchy": cat["path"],  # JSON
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+                supabase.table("products").update(update_payload).eq("id", p["id"]).execute()
+
+                ok += 1
+                label = p.get("sku") or p["id"]
+                print(f"✅ {label}: {cat['path_str']}")
+            except Exception as e:
                 fail += 1
-                continue
+                print(f"❌ {item_id}: {e}")
 
-            cat = fetch_category_path(cat_id)
+            # Evita burst / respeita rate limit
+            time.sleep(0.2)
 
-            update_payload = {
-                "ml_category_id": cat["id"],
-                "ml_category_name": cat["name"],
-                "ml_category_path": cat["path_str"],
-                "ml_category_hierarchy": cat["path"],  # JSON
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-            supabase.table("products").update(update_payload).eq("id", p["id"]).execute()
+        print(f"\nResumo: atualizados {ok}, falhas {fail}, total {len(pendentes)}.")
+    except Exception as e:
+        print(f"❌ Erro geral: {e}")
 
-            ok += 1
-            label = p.get("sku") or p["id"]
-            print(f"✅ {label}: {cat['path_str']}")
-        except Exception as e:
-            fail += 1
-            print(f"❌ {item_id}: {e}")
-
-        # Evita burst / respeita rate limit
-        time.sleep(0.2)
-
-    print(f"\nResumo: atualizados {ok}, falhas {fail}, total {len(pendentes)}.")
+def sync_products():
+    """Função exportada para sincronizar produtos do ML"""
+    main()
 
 if __name__ == "__main__":
     main()
