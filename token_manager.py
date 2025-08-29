@@ -36,9 +36,17 @@ def refresh_ml_token(user_id: str, refresh_token: str):
         "client_secret": ML_CLIENT_SECRET,
         "refresh_token": refresh_token,
     }
-    response = requests.post(url, data=payload).json()
-    update_integration(user_id, "ml", response["access_token"], response["refresh_token"], response["expires_in"])
-    return response["access_token"]
+    response = requests.post(url, data=payload, timeout=30)
+    
+    if response.status_code >= 400:
+        raise Exception(f"Erro ao atualizar token ML: {response.status_code} {response.text}")
+        
+    data = response.json()
+    if "access_token" not in data or "refresh_token" not in data:
+        raise Exception(f"Resposta inválida do ML: {data}")
+        
+    update_integration(user_id, "ml", data["access_token"], data["refresh_token"], data["expires_in"])
+    return data["access_token"]
 
 def refresh_bling_token(user_id: str, refresh_token: str):
     url = "https://www.bling.com.br/Api/v3/oauth/token"
@@ -48,9 +56,17 @@ def refresh_bling_token(user_id: str, refresh_token: str):
         "client_secret": BLING_CLIENT_SECRET,
         "refresh_token": refresh_token,
     }
-    response = requests.post(url, data=payload).json()
-    update_integration(user_id, "bling", response["access_token"], response["refresh_token"], response["expires_in"])
-    return response["access_token"]
+    response = requests.post(url, data=payload, timeout=30)
+    
+    if response.status_code >= 400:
+        raise Exception(f"Erro ao atualizar token Bling: {response.status_code} {response.text}")
+        
+    data = response.json()
+    if "access_token" not in data or "refresh_token" not in data:
+        raise Exception(f"Resposta inválida do Bling: {data}")
+        
+    update_integration(user_id, "bling", data["access_token"], data["refresh_token"], data["expires_in"])
+    return data["access_token"]
 
 def get_valid_token(user_id: str, provider: str):
     """Retorna um token válido para o usuário"""
@@ -58,14 +74,18 @@ def get_valid_token(user_id: str, provider: str):
     if not integration:
         raise Exception(f"Nenhuma integração encontrada para {provider}")
 
-    # Aqui podemos calcular se o token já está expirado (opcional)
-    # Se precisar, podemos salvar também um expires_at
-    if integration["expires_in"] < 60:  # token expirado ou perto do vencimento
-        if provider == "ml":
-            return refresh_ml_token(user_id, integration["refresh_token"])
-        elif provider == "bling":
-            return refresh_bling_token(user_id, integration["refresh_token"])
-        else:
-            raise Exception("Provider inválido")
+    # Verifica se o token está expirado ou perto do vencimento
+    # Se expires_in for None ou menor que 60 segundos, atualiza o token
+    expires_in = integration.get("expires_in", 0)
+    if expires_in is None or expires_in < 60:  # token expirado ou perto do vencimento
+        try:
+            if provider == "ml":
+                return refresh_ml_token(user_id, integration["refresh_token"])
+            elif provider == "bling":
+                return refresh_bling_token(user_id, integration["refresh_token"])
+            else:
+                raise Exception("Provider inválido")
+        except Exception as e:
+            raise Exception(f"Erro ao atualizar token {provider}: {str(e)}")
 
     return integration["access_token"]

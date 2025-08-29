@@ -27,18 +27,21 @@ def get_integration_tokens(provider: str, user_id: Optional[str] = None) -> Dict
     Pega o token MAIS RECENTE na tabela 'integrations' para o provider informado.
     Se user_id for fornecido, filtra por usuário; senão, pega de qualquer usuário (o mais novo).
     """
-    q = supabase.table("integrations").select("*").eq("provider", provider)
-    if user_id:
-        q = q.eq("user_id", user_id)
-    res = q.order("created_at", desc=True).limit(1).execute()
-    rows = res.data or []
-    if not rows:
-        raise RuntimeError(f"❌ Nenhuma integração '{provider}' encontrada na tabela 'integrations'.")
-    row = rows[0]
-    return {
-        "access_token": row["access_token"],
-        "refresh_token": row.get("refresh_token"),
-        "expires_in": row.get("expires_in"),
-        "user_id": row["user_id"],
-        "id": row["id"],
-    }
+    try:
+        q = supabase.table("integrations").select("*").eq("provider", provider)
+        if user_id:
+            q = q.eq("user_id", user_id)
+        res = q.order("created_at", desc=True).limit(1).execute()
+        rows = res.data or []
+        if not rows:
+            raise RuntimeError(f"❌ Nenhuma integração '{provider}' encontrada na tabela 'integrations'.")
+        row = rows[0]
+        return {
+            "access_token": row.get("access_token", ""),
+            "refresh_token": row.get("refresh_token"),
+            "expires_in": row.get("expires_in"),
+            "user_id": row.get("user_id", ""),
+            "id": row.get("id", ""),
+        }
+    except Exception as e:
+        raise RuntimeError(f"❌ Erro ao buscar integração '{provider}': {str(e)}")
