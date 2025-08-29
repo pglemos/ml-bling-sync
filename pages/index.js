@@ -19,12 +19,39 @@ export default function Home() {
     });
   }, []);
 
+  // Captura tokens da URL e salva no Supabase
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const provider = params.get("bling") ? "bling" : params.get("ml") ? "ml" : null;
+
+    if (provider) {
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+      const expires_in = params.get("expires_in");
+
+      if (access_token) {
+        fetch("/api/integrations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider,
+            access_token,
+            refresh_token,
+            expires_in,
+          }),
+        }).then(() => {
+          // limpa a URL após salvar
+          window.history.replaceState({}, document.title, "/");
+        });
+      }
+    }
+  }, []);
+
   async function signIn() {
     const { error } = await supabase.auth.signInWithPassword({
-      email: "teste@teste.com",   // usuário criado no Supabase
-      password: "123456",         // senha criada no Supabase
+      email: "teste@teste.com",
+      password: "123456",
     });
-
     if (!error) {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);

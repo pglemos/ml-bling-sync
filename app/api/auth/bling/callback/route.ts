@@ -1,56 +1,67 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
+import supabase from "@/lib/supabaseClient";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-export async function GET(req: NextRequest) {
-  const code = req.nextUrl.searchParams.get("code");
-  const user_id = req.nextUrl.searchParams.get("state");
-
-  if (!code || !user_id) {
-    return NextResponse.json({ error: "Code ou user_id não encontrado" }, { status: 400 });
-  }
-
+export async function GET(req: Request) {
   try {
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/bling/callback`;
+    const { searchParams } = new URL(req.url);
+    const code = searchParams.get("code");
 
-    const authString = Buffer.from(
-      `${process.env.BLING_CLIENT_ID}:${process.env.BLING_CLIENT_SECRET}`
-    ).toString("base64");
+    console.log("🔑 Código recebido:", code);
 
-    const resp = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
+    if (!code) {
+      return NextResponse.json({ error: "Código não encontrado" }, { status: 400 });
+    }
+
+    // Troca o código por token no Bling
+    const response = await fetch("https://bling.com.br/Api/v3/oauth/token", {
       method: "POST",
-      headers: {
-        Authorization: `Basic ${authString}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "authorization_code",
         code,
-        redirect_uri: redirectUri,
+        client_id: process.env.BLING_CLIENT_ID!,
+        client_secret: process.env.BLING_CLIENT_SECRET!,
+        redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/bling/callback`,
       }),
     });
 
-    if (!resp.ok) {
-      return NextResponse.json({ error: await resp.text() }, { status: 400 });
+    const tokenData = await response.json();
+    console.log("📡 Token recebido do Bling:", tokenData);
+
+    if (tokenData.error) {
+      console.error("❌ Erro ao trocar código por token:", tokenData);
+      return NextResponse.json({ error: tokenData }, { status: 400 });
     }
 
-    const tokens = await resp.json();
+    // Pega usuário logado
+    const { data: { user } } = await supabase.auth.getUser();
+    console.log("👤 Usuário logado:", user);
 
-    await supabase.from("user_tokens").upsert({
+    if (!user) {
+      return NextResponse.json({ error: "Usuário não autenticado" }, { status: 401 });
+    }
+
+    // Salva integração no Supabase
+    const { data, error } = await supabase.from("integrations").insert({
+      user_id: user.id,
       provider: "bling",
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expires_at: Math.floor(Date.now() / 1000) + tokens.expires_in,
-      user_id,
-    });
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_in: tokenData.expires_in,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }).select();
 
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?bling=ok`);
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Erro na autenticação Bling" }, { status: 500 });
+    if (error) {
+      console.error("❌ Erro ao salvar integração no Supabase:", error);
+      return NextResponse.json({ error }, { status: 500 });
+    }
+
+    console.log("💾 Integração salva no Supabase:", data);
+
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}?bling=ok`);
+  } catch (err: any) {
+    console.error("🔥 Erro inesperado:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

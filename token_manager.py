@@ -1,97 +1,34 @@
 import os
-import time
 import requests
-import base64
+from datetime import datetime, timedelta
 from supabase import create_client, Client
-from dotenv import load_dotenv
 
-# Carregar variáveis do .env
-load_dotenv()
+# Supabase
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Agora sim pega as variáveis
-SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
+# Config ML e Bling
+ML_CLIENT_ID = os.getenv("ML_CLIENT_ID")
+ML_CLIENT_SECRET = os.getenv("ML_CLIENT_SECRET")
 BLING_CLIENT_ID = os.getenv("BLING_CLIENT_ID")
 BLING_CLIENT_SECRET = os.getenv("BLING_CLIENT_SECRET")
 
-ML_CLIENT_ID = os.getenv("ML_CLIENT_ID")
-ML_CLIENT_SECRET = os.getenv("ML_CLIENT_SECRET")
+def get_integration(user_id: str, provider: str):
+    """Busca integração do usuário no Supabase"""
+    response = supabase.table("integrations").select("*").eq("user_id", user_id).eq("provider", provider).single().execute()
+    return response.data if response.data else None
 
-# Só cria o cliente depois que o .env foi carregado
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+def update_integration(user_id: str, provider: str, access_token: str, refresh_token: str, expires_in: int):
+    """Atualiza token no Supabase"""
+    supabase.table("integrations").update({
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_in": expires_in,
+        "updated_at": datetime.utcnow().isoformat()
+    }).eq("user_id", user_id).eq("provider", provider).execute()
 
-
-
-# ==============================
-# FUNÇÕES AUXILIARES
-# ==============================
-
-def get_user_token(provider: str, user_id: str):
-    """Busca token do Supabase"""
-    resp = supabase.table("user_tokens").select("*") \
-        .eq("provider", provider).eq("user_id", user_id).single().execute()
-    if resp.data:
-        return resp.data
-    return None
-
-
-def save_user_token(provider: str, user_id: str, tokens: dict):
-    """Salva token atualizado no Supabase"""
-    data = {
-        "provider": provider,
-        "user_id": user_id,
-        "access_token": tokens["access_token"],
-        "refresh_token": tokens.get("refresh_token"),
-        "expires_at": int(time.time()) + int(tokens["expires_in"]),
-    }
-    supabase.table("user_tokens").upsert(data).execute()
-
-
-# ==============================
-# REFRESH TOKENS
-# ==============================
-
-def refresh_bling_token(user_id: str):
-    tokens = get_user_token("bling", user_id)
-    if not tokens:
-        raise Exception("Token Bling não encontrado para este usuário.")
-
-    refresh_token = tokens.get("refresh_token")
-    if not refresh_token:
-        raise Exception("Refresh token Bling não encontrado.")
-
-    url = "https://www.bling.com.br/Api/v3/oauth/token"
-
-    auth_str = f"{BLING_CLIENT_ID}:{BLING_CLIENT_SECRET}"
-    auth_b64 = base64.b64encode(auth_str.encode("ascii")).decode("ascii")
-
-    headers = {
-        "Authorization": f"Basic {auth_b64}",
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-
-    data = {
-        "grant_type": "refresh_token",
-        "refresh_token": refresh_token
-    }
-
-    response = requests.post(url, data=data, headers=headers)
-    response.raise_for_status()
-    new_tokens = response.json()
-    save_user_token("bling", user_id, new_tokens)
-    return new_tokens
-
-
-def refresh_ml_token(user_id: str):
-    tokens = get_user_token("ml", user_id)
-    if not tokens:
-        raise Exception("Token Mercado Livre não encontrado para este usuário.")
-
-    refresh_token = tokens.get("refresh_token")
-    if not refresh_token:
-        raise Exception("Refresh token ML não encontrado.")
-
+def refresh_ml_token(user_id: str, refresh_token: str):
     url = "https://api.mercadolibre.com/oauth/token"
     payload = {
         "grant_type": "refresh_token",
@@ -99,37 +36,36 @@ def refresh_ml_token(user_id: str):
         "client_secret": ML_CLIENT_SECRET,
         "refresh_token": refresh_token,
     }
+    response = requests.post(url, data=payload).json()
+    update_integration(user_id, "ml", response["access_token"], response["refresh_token"], response["expires_in"])
+    return response["access_token"]
 
-    response = requests.post(url, data=payload)
-    response.raise_for_status()
-    new_tokens = response.json()
-    save_user_token("ml", user_id, new_tokens)
-    return new_tokens
+def refresh_bling_token(user_id: str, refresh_token: str):
+    url = "https://www.bling.com.br/Api/v3/oauth/token"
+    payload = {
+        "grant_type": "refresh_token",
+        "client_id": BLING_CLIENT_ID,
+        "client_secret": BLING_CLIENT_SECRET,
+        "refresh_token": refresh_token,
+    }
+    response = requests.post(url, data=payload).json()
+    update_integration(user_id, "bling", response["access_token"], response["refresh_token"], response["expires_in"])
+    return response["access_token"]
 
+def get_valid_token(user_id: str, provider: str):
+    """Retorna um token válido para o usuário"""
+    integration = get_integration(user_id, provider)
+    if not integration:
+        raise Exception(f"Nenhuma integração encontrada para {provider}")
 
-# ==============================
-# GET TOKENS
-# ==============================
+    # Aqui podemos calcular se o token já está expirado (opcional)
+    # Se precisar, podemos salvar também um expires_at
+    if integration["expires_in"] < 60:  # token expirado ou perto do vencimento
+        if provider == "ml":
+            return refresh_ml_token(user_id, integration["refresh_token"])
+        elif provider == "bling":
+            return refresh_bling_token(user_id, integration["refresh_token"])
+        else:
+            raise Exception("Provider inválido")
 
-def get_bling_token(user_id: str):
-    tokens = get_user_token("bling", user_id)
-    if not tokens:
-        raise Exception("Token Bling não encontrado. Autentique primeiro.")
-
-    if time.time() >= tokens.get("expires_at", 0) - 60:
-        tokens = refresh_bling_token(user_id)
-    return tokens["access_token"]
-
-
-def get_ml_token(user_id: str):
-    tokens = get_user_token("ml", user_id)
-    if not tokens:
-        raise Exception("Token Mercado Livre não encontrado. Autentique primeiro.")
-
-    if time.time() >= tokens.get("expires_at", 0) - 60:
-        tokens = refresh_ml_token(user_id)
-    return tokens["access_token"]
-
-if __name__ == "__main__":
-    print("Supabase URL:", SUPABASE_URL)
-    print("Client criado com sucesso ✅")
+    return integration["access_token"]
