@@ -1,90 +1,44 @@
-# utils.py
 import os
-import time
-import requests
-from dotenv import load_dotenv
+from typing import Optional, Dict, Any
 from supabase import create_client
 
-# Carrega variáveis do .env.local
-load_dotenv(".env.local")
+def _load_env():
+    # tenta carregar .env e .env.local se existirem (não quebra se não tiver python-dotenv)
+    try:
+        from dotenv import load_dotenv  # type: ignore
+        load_dotenv(".env", override=False)
+        load_dotenv(".env.local", override=False)
+    except Exception:
+        pass
 
-SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+_load_env()
+
+# Usa primeiro SUPABASE_URL / SERVICE_ROLE; se não, cai na NEXT_PUBLIC_*
+SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-ML_CLIENT_ID = os.getenv("ML_CLIENT_ID")
-ML_CLIENT_SECRET = os.getenv("ML_CLIENT_SECRET")
-BLING_CLIENT_ID = os.getenv("BLING_CLIENT_ID")
-BLING_CLIENT_SECRET = os.getenv("BLING_CLIENT_SECRET")
 
 if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-    raise ValueError("❌ Variáveis SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não foram carregadas!")
+    raise RuntimeError("❌ Variáveis do Supabase não configuradas. Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-
-def refresh_ml_token(refresh_token: str):
-    """Renova token do Mercado Livre"""
-    url = "https://api.mercadolibre.com/oauth/token"
-    payload = {
-        "grant_type": "refresh_token",
-        "client_id": ML_CLIENT_ID,
-        "client_secret": ML_CLIENT_SECRET,
-        "refresh_token": refresh_token
+def get_integration_tokens(provider: str, user_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Pega o token MAIS RECENTE na tabela 'integrations' para o provider informado.
+    Se user_id for fornecido, filtra por usuário; senão, pega de qualquer usuário (o mais novo).
+    """
+    q = supabase.table("integrations").select("*").eq("provider", provider)
+    if user_id:
+        q = q.eq("user_id", user_id)
+    res = q.order("created_at", desc=True).limit(1).execute()
+    rows = res.data or []
+    if not rows:
+        raise RuntimeError(f"❌ Nenhuma integração '{provider}' encontrada na tabela 'integrations'.")
+    row = rows[0]
+    return {
+        "access_token": row["access_token"],
+        "refresh_token": row.get("refresh_token"),
+        "expires_in": row.get("expires_in"),
+        "user_id": row["user_id"],
+        "id": row["id"],
     }
-    resp = requests.post(url, data=payload)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def refresh_bling_token(refresh_token: str):
-    """Renova token do Bling"""
-    url = "https://www.bling.com.br/Api/v3/oauth/token"
-    payload = {
-        "grant_type": "refresh_token",
-        "client_id": BLING_CLIENT_ID,
-        "client_secret": BLING_CLIENT_SECRET,
-        "refresh_token": refresh_token
-    }
-    resp = requests.post(url, data=payload)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def get_integration_tokens(user_id: str, provider: str):
-    """Busca token mais recente no Supabase e renova se expirado"""
-    response = supabase.table("integrations") \
-        .select("*") \
-        .eq("user_id", user_id) \
-        .eq("provider", provider) \
-        .order("created_at", desc=True) \
-        .limit(1) \
-        .execute()
-
-    if not response.data:
-        raise Exception(f"⚠️ Nenhum token encontrado para {provider}")
-
-    token_data = response.data[0]
-
-    # Checar expiração
-    now = int(time.time())
-    if token_data["expires_in"] and int(token_data["expires_in"]) < now:
-        print(f"🔄 Token expirado para {provider}, renovando...")
-
-        if provider == "ml":
-            new_tokens = refresh_ml_token(token_data["refresh_token"])
-        elif provider == "bling":
-            new_tokens = refresh_bling_token(token_data["refresh_token"])
-        else:
-            raise Exception(f"⚠️ Provider desconhecido: {provider}")
-
-        # Atualiza no Supabase
-        supabase.table("integrations").update({
-            "access_token": new_tokens["access_token"],
-            "refresh_token": new_tokens.get("refresh_token", token_data["refresh_token"]),
-            "expires_in": now + int(new_tokens["expires_in"]),
-            "updated_at": time.strftime('%Y-%m-%d %H:%M:%S')
-        }).eq("id", token_data["id"]).execute()
-
-        token_data.update(new_tokens)
-        token_data["expires_in"] = now + int(new_tokens["expires_in"])
-
-    return token_data

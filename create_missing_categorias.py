@@ -1,56 +1,60 @@
 import requests
-import os
-from supabase import create_client, Client
+from utils import get_integration_tokens, supabase
 
-# 🔑 Variáveis de ambiente (configure no Vercel e local .env)
-SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+def get_category_path_ml(category_id, access_token):
+    """Busca hierarquia completa da categoria no ML"""
+    url = f"https://api.mercadolibre.com/categories/{category_id}"
+    resp = requests.get(url, headers={"Authorization": f"Bearer {access_token}"})
+    if resp.status_code != 200:
+        raise Exception(f"Erro ao buscar categoria {category_id}: {resp.text}")
+    return resp.json().get("path_from_root", [])
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+def create_category_bling(path, bling_token):
+    """Cria categorias no Bling seguindo a hierarquia"""
+    parent_id = None
+    for node in path:
+        data = {"descricao": node["name"]}
+        if parent_id:
+            data["idCategoriaPai"] = parent_id
 
-def get_tokens(provider: str):
-    """Busca tokens no Supabase para o provedor (ml ou bling)."""
-    data = supabase.table("integrations").select("*").eq("provider", provider).execute()
-    if len(data.data) == 0:
-        raise Exception(f"Nenhum token encontrado para {provider}")
-    return data.data[0]  # pega o primeiro (ou último válido)
+        resp = requests.post(
+            "https://www.bling.com.br/Api/v3/categorias",
+            headers={"Authorization": f"Bearer {bling_token}"},
+            json=data
+        )
 
-def get_ml_categories(access_token: str):
-    """Puxa categorias do Mercado Livre (exemplo: MLB)."""
-    url = "https://api.mercadolibre.com/sites/MLB/categories"
-    headers = {"Authorization": f"Bearer {access_token}"}
-    res = requests.get(url, headers=headers)
-    res.raise_for_status()
-    return res.json()
+        if resp.status_code in [200, 201]:
+            parent_id = resp.json().get("data", {}).get("id")
+            print(f"📦 Categoria criada/confirmada no Bling: {node['name']} (id={parent_id})")
+        else:
+            print(f"⚠️ Erro ao criar {node['name']}: {resp.text}")
+            break
 
-def create_bling_category(access_token: str, category_name: str, parent_id=None):
-    """Cria categoria (família) no Bling."""
-    url = "https://www.bling.com.br/Api/v3/categorias"
-    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-    payload = {
-        "descricao": category_name,
-    }
-    if parent_id:
-        payload["idCategoriaPai"] = parent_id
+def main():
+    ml_tokens = get_integration_tokens("ml")
+    bling_tokens = get_integration_tokens("bling")
 
-    res = requests.post(url, headers=headers, json=payload)
-    if res.status_code not in [200, 201]:
-        print("❌ Erro ao criar categoria:", res.text)
-    else:
-        print(f"✅ Categoria criada: {category_name}")
-    return res.json()
+    # Buscar todos os produtos que ainda não possuem ml_category_path
+    products = supabase.table("products").select("*").is_("ml_category_path", None).execute().data
 
-def sync_categories():
-    # 1. Pega tokens
-    ml_tokens = get_tokens("ml")
-    bling_tokens = get_tokens("bling")
+    for product in products:
+        category_id = product.get("category_id")
+        if not category_id:
+            continue
 
-    # 2. Busca categorias ML
-    ml_categories = get_ml_categories(ml_tokens["access_token"])
+        # 1. Buscar hierarquia no ML
+        path = get_category_path_ml(category_id, ml_tokens["access_token"])
 
-    # 3. Cria no Bling
-    for cat in ml_categories:
-        create_bling_category(bling_tokens["access_token"], cat["name"])
+        # 2. Atualizar produto no Supabase
+        supabase.table("products").update({
+            "ml_category_path": path
+        }).eq("id", product["id"]).execute()
+
+        print(f"✅ Atualizado produto {product['id']} com categorias ML")
+
+        # 3. Criar hierarquia no Bling
+        if path:
+            create_category_bling(path, bling_tokens["access_token"])
 
 if __name__ == "__main__":
-    sync_categories()
+    main()
