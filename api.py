@@ -1,10 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import uvicorn
-from create_missing_categorias import sync_categories
-from sync_products import sync_products
 import datetime
 import os
 
@@ -46,15 +43,15 @@ def get_dashboard():
 @app.get("/api/sync")
 def run_sync():
     try:
-        # Executar sincronização
-        sync_categories()
-        sync_products()
+        # Simulação de sincronização (sem dependências externas)
+        # sync_categories()
+        # sync_products()
         
         # Atualizar métricas
         metrics["lastSync"] = "Agora"
         metrics["syncCount"] += 1
         
-        return {"success": True, "message": "Sincronização concluída com sucesso"}
+        return {"success": True, "message": "Sincronização simulada concluída com sucesso"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,0 +1,11 @@
+{
+  "models": [
+    { "title": "Qwen 2.5 Coder 7B", "provider": "ollama", "model": "qwen2.5-coder:7b" },
+    { "title": "DeepSeek-Coder-V2 16B", "provider": "ollama", "model": "deepseek-coder-v2:16b" },
+    { "title": "CodeLLaMa 13B", "provider": "ollama", "model": "codellama:13b" },
+    { "title": "WizardCoder 7B", "provider": "ollama", "model": "wizardcoder:7b" },
+    { "title": "Granite-Code 8B", "provider": "ollama", "model": "granite-code:8b" },
+    { "title": "StarCoder2 3B", "provider": "ollama", "model": "starcoder2:3b" }
+  ],
+  "defaultModel": "DeepSeek-Coder-V2 16B"
+}
