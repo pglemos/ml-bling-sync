@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# ML + Bling Sync
+
+Integração entre Mercado Livre e Bling para sincronização automática de produtos e categorias.
 
 ## Getting Started
 
-First, run the development server:
+### Execução Local
+
+Para executar o projeto localmente:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+python api.py
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Acesse o dashboard em [http://localhost:8000](http://localhost:8000) com seu navegador.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+**Alternativa:** Se o servidor local não estiver funcionando, você pode acessar o dashboard diretamente pelo arquivo:
+`file:///C:/Users/Pedro/ml-bling-sync/dashboard.html`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Versão Hospedada no Vercel
 
-## Learn More
+Este projeto está configurado para ser executado no Vercel. Acesse o dashboard em [https://ml-bling-sync.vercel.app](https://ml-bling-sync.vercel.app).
 
-To learn more about Next.js, take a look at the following resources:
+## Estrutura do Projeto
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `api.py` - API FastAPI para sincronização
+- `dashboard.html` - Interface de usuário para gerenciar a sincronização
+- `create_missing_categorias.py` - Script para sincronizar categorias
+- `sync_products.py` - Script para sincronizar produtos
+- `vercel.json` - Configuração para implantação no Vercel
+- `requirements.txt` - Dependências do projeto
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Funcionalidades
 
-## Deploy on Vercel
+- Sincronização automática de categorias entre Mercado Livre e Bling
+- Sincronização automática de produtos entre Mercado Livre e Bling
+- Dashboard para monitoramento e controle da sincronização
+- API para integração com outros sistemas
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploy no Vercel
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Este projeto está configurado para ser implantado no Vercel. Siga os passos abaixo para implantar:
+
+1. Crie uma conta no [Vercel](https://vercel.com) se ainda não tiver uma
+2. Instale a CLI do Vercel: `npm i -g vercel`
+3. Faça login na sua conta: `vercel login`
+4. No diretório do projeto, execute: `vercel`
+5. Siga as instruções na tela para completar a implantação
+
+Alternativamente, você pode conectar seu repositório GitHub ao Vercel para implantação automática.

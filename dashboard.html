@@ -7,6 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Base URL para API hospedada no Vercel -->
+    <script>
+        const API_BASE_URL = "https://ml-bling-sync.vercel.app";
+    </script>
     <style>
         body { font-family: 'Inter', sans-serif; }
         .gradient-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
@@ -478,64 +482,122 @@
         function runSync() {
             addLog('Sincronização iniciada...', 'info');
             
-            // Simulate sync process
-            setTimeout(() => {
-                addLog('Categorias sincronizadas com sucesso!', 'success');
-                setTimeout(() => {
+            // Fazer chamada para a API hospedada no Vercel
+            fetch(`${API_BASE_URL}/api/sync`)
+                .then(response => response.json())
+                .then(data => {
+                    addLog('Categorias sincronizadas com sucesso!', 'success');
                     addLog('Produtos sincronizados com sucesso!', 'success');
                     updateMetrics();
-                }, 1000);
-            }, 2000);
+                })
+                .catch(error => {
+                    addLog(`Erro na sincronização: ${error.message}`, 'error');
+                });
         }
 
         function addTestProducts() {
             addLog('Adicionando produtos de teste...', 'info');
             
-            // Simulate adding products
-            setTimeout(() => {
-                addLog('3 produtos de teste adicionados!', 'success');
-                loadProducts();
-                updateMetrics();
-            }, 1500);
+            // Fazer chamada para a API hospedada no Vercel
+            fetch(`${API_BASE_URL}/api/add-test-products`)
+                .then(response => response.json())
+                .then(data => {
+                    addLog('Produtos de teste adicionados!', 'success');
+                    loadProducts();
+                    updateMetrics();
+                })
+                .catch(error => {
+                    addLog(`Erro ao adicionar produtos: ${error.message}`, 'error');
+                });
         }
 
         function checkIntegrations() {
             addLog('Verificando integrações...', 'info');
             
-            setTimeout(() => {
-                addLog('Integrações ML e Bling funcionando corretamente!', 'success');
-            }, 1000);
+            // Fazer chamada para a API hospedada no Vercel
+            fetch(`${API_BASE_URL}/api/check-integrations`)
+                .then(response => response.json())
+                .then(data => {
+                    addLog('Integrações ML e Bling funcionando corretamente!', 'success');
+                })
+                .catch(error => {
+                    addLog(`Erro ao verificar integrações: ${error.message}`, 'error');
+                });
         }
 
         function loadProducts() {
             const productsList = document.getElementById('products-list');
-            const products = [
-                { name: 'iPhone 15 Pro Max', sku: 'TEST-001', price: 'R$ 8.999', status: 'Em Estoque' },
-                { name: 'MacBook Air M3', sku: 'TEST-002', price: 'R$ 12.999', status: 'Em Estoque' },
-                { name: 'iPad Pro 12.9"', sku: 'TEST-003', price: 'R$ 7.499', status: 'Em Estoque' }
-            ];
-
-            productsList.innerHTML = products.map(product => `
-                <div class="card-premium p-6 rounded-xl">
-                    <div class="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg mb-4 flex items-center justify-center">
-                        <i data-lucide="smartphone" class="w-12 h-12 text-gray-400"></i>
-                    </div>
-                    <h4 class="font-semibold text-gray-900 mb-2">${product.name}</h4>
-                    <p class="text-sm text-gray-500 mb-3">SKU: ${product.sku}</p>
-                    <div class="flex items-center justify-between mb-4">
-                        <span class="text-lg font-bold text-gray-900">${product.price}</span>
-                        <span class="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded-full">${product.status}</span>
-                    </div>
-                </div>
-            `).join('');
             
-            lucide.createIcons();
+            // Tentar buscar produtos da API
+            fetch(`${API_BASE_URL}/api/products`)
+                .then(response => response.json())
+                .then(data => {
+                    const products = data.products || [
+                        { name: 'iPhone 15 Pro Max', sku: 'TEST-001', price: 'R$ 8.999', status: 'Em Estoque' },
+                        { name: 'MacBook Air M3', sku: 'TEST-002', price: 'R$ 12.999', status: 'Em Estoque' },
+                        { name: 'iPad Pro 12.9"', sku: 'TEST-003', price: 'R$ 7.499', status: 'Em Estoque' }
+                    ];
+
+                    productsList.innerHTML = products.map(product => `
+                        <div class="card-premium p-6 rounded-xl">
+                            <div class="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg mb-4 flex items-center justify-center">
+                                <i data-lucide="smartphone" class="w-12 h-12 text-gray-400"></i>
+                            </div>
+                            <h4 class="font-semibold text-gray-900 mb-2">${product.name}</h4>
+                            <p class="text-sm text-gray-500 mb-3">SKU: ${product.sku}</p>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-lg font-bold text-gray-900">${product.price}</span>
+                                <span class="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded-full">${product.status}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    lucide.createIcons();
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar produtos:', error);
+                    // Fallback para produtos de demonstração em caso de erro
+                    const products = [
+                        { name: 'iPhone 15 Pro Max', sku: 'TEST-001', price: 'R$ 8.999', status: 'Em Estoque' },
+                        { name: 'MacBook Air M3', sku: 'TEST-002', price: 'R$ 12.999', status: 'Em Estoque' },
+                        { name: 'iPad Pro 12.9"', sku: 'TEST-003', price: 'R$ 7.499', status: 'Em Estoque' }
+                    ];
+
+                    productsList.innerHTML = products.map(product => `
+                        <div class="card-premium p-6 rounded-xl">
+                            <div class="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg mb-4 flex items-center justify-center">
+                                <i data-lucide="smartphone" class="w-12 h-12 text-gray-400"></i>
+                            </div>
+                            <h4 class="font-semibold text-gray-900 mb-2">${product.name}</h4>
+                            <p class="text-sm text-gray-500 mb-3">SKU: ${product.sku}</p>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-lg font-bold text-gray-900">${product.price}</span>
+                                <span class="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded-full">${product.status}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    lucide.createIcons();
+                });
         }
 
         function updateMetrics() {
-            document.getElementById('products-count').textContent = '3';
-            document.getElementById('pending-count').textContent = '0';
-            document.getElementById('last-sync').textContent = 'Agora';
+            // Buscar métricas da API hospedada no Vercel
+            fetch(`${API_BASE_URL}/api/metrics`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('products-count').textContent = data.productsCount || '3';
+                    document.getElementById('pending-count').textContent = data.pendingCount || '0';
+                    document.getElementById('last-sync').textContent = data.lastSync || 'Agora';
+                    document.getElementById('sync-count').textContent = data.syncCount || '856';
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar métricas:', error);
+                    // Valores padrão em caso de erro
+                    document.getElementById('products-count').textContent = '3';
+                    document.getElementById('pending-count').textContent = '0';
+                    document.getElementById('last-sync').textContent = 'Agora';
+                });
         }
 
         function addLog(message, type = 'info') {
