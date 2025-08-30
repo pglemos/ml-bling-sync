@@ -22,7 +22,7 @@ export function MetricCard({
   value, 
   change, 
   changeType = "positive", 
-  icon: "trending",
+  icon = "trending",
   description 
 }: MetricCardProps) {
   const Icon = iconMap[icon as keyof typeof iconMap] || TrendingUp;

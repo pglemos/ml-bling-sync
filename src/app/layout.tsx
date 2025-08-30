@@ -1,4 +1,5 @@
 ﻿import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -103,7 +104,7 @@ export default function RootLayout({
               <div className="flex items-center gap-2">
                 <Link href="/">
                   <div className="flex items-center gap-2">
-                    <img src="/bling-logo.png" width={40} height={40} alt="SynVolt" />
+                    <Image src="/bling-logo.png" width={40} height={40} alt="SynVolt" />
                     <h1 className="text-xl font-bold text-sky-700">SynVolt Saas</h1>
                   </div>
                 </Link>

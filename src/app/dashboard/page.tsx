@@ -241,7 +241,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-6 text-sm font-medium text-gray-900">iPad Pro 12.9" 1TB</td>
+                <td className="px-6 py-6 text-sm font-medium text-gray-900">iPad Pro 12.9&quot; 1TB</td>
                 <td className="px-6 py-6">
                   <span className="status-badge bg-blue-100 text-blue-800">Enviado</span>
                 </td>
