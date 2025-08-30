@@ -1,9 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import uvicorn
 from create_missing_categorias import sync_categories
 from sync_products import sync_products
 import datetime
+import os
 
 app = FastAPI()
 
@@ -33,7 +36,12 @@ products = [
 
 @app.get("/")
 def read_root():
-    return {"message": "ML + Bling Sync API"}
+    # Servir o dashboard.html como página principal
+    return FileResponse("dashboard.html")
+
+@app.get("/dashboard")
+def get_dashboard():
+    return FileResponse("dashboard.html")
 
 @app.get("/api/sync")
 def run_sync():
