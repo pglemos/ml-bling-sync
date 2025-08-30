@@ -1,7 +1,7 @@
 ﻿import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Toaster } from "@/components/toaster";

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import supabase from "@/lib/supabaseClient";
+import { supabase } from "../../lib/supabase";
 
 // DELETE -> remove integração
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Usuário não autenticado" }, { status: 401 });
@@ -12,7 +13,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     const { error } = await supabase
       .from("integrations")
       .delete()
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", user.id);
 
     if (error) {

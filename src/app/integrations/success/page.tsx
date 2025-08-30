@@ -13,12 +13,12 @@ export default function IntegrationSuccess() {
   > = {
     ml: {
       name: "Mercado Livre",
-      logo: "/mercadolivre.png",
+      logo: "/mercadolivre-logo.png",
       color: "bg-yellow-400",
     },
     bling: {
       name: "Bling",
-      logo: "/bling.png",
+      logo: "/bling-logo.png",
       color: "bg-green-500",
     },
   };

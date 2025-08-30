@@ -1,7 +1,7 @@
 ﻿"use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabase";
 import { MetricCard } from "@/components/layout/metric-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { BarChart3, RefreshCw, Upload, Download, Filter, ArrowRight } from "lucide-react";
