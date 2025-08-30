@@ -1,18 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET(request: NextRequest) {
   try {
-    // Obter o usuário autenticado (vamos implementar isso depois)
-    // Por enquanto, vamos usar um ID fixo para teste
-    const userId = 'user-test-id';
+    // Verificar se o usuário está autenticado
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error } = await supabase.auth.getUser(token);
     
-    const { data: integrations, error } = await supabaseServer
+    if (error || !user) {
+      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
+    }
+
+    const { data: integrations, error: dbError } = await supabase
       .from('user_integrations')
       .select('*')
-      .eq('user_id', userId);
+      .eq('user_id', user.id);
     
-    if (error) throw error;
+    if (dbError) throw dbError;
     
     return NextResponse.json({ integrations: integrations || [] });
   } catch (error) {
@@ -26,20 +40,32 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { blingKey, mlKey } = await request.json();
-    const userId = 'user-test-id'; // Vamos implementar autenticação depois
+    // Verificar se o usuário está autenticado
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error } = await supabase.auth.getUser(token);
     
-    const updates: any = { user_id: userId, updated_at: new Date().toISOString() };
+    if (error || !user) {
+      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
+    }
+
+    const { blingKey, mlKey } = await request.json();
+    
+    const updates: any = { user_id: user.id, updated_at: new Date().toISOString() };
     
     if (blingKey) updates.bling_api_key = blingKey;
     if (mlKey) updates.ml_api_key = mlKey;
     
-    const { data, error } = await supabaseServer
+    const { data, error: dbError } = await supabase
       .from('user_integrations')
       .upsert(updates, { onConflict: 'user_id' })
       .select();
     
-    if (error) throw error;
+    if (dbError) throw dbError;
     
     return NextResponse.json({ 
       success: true,

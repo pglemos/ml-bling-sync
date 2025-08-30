@@ -1,403 +1,260 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-
-type Integration = {
-  id: string;
-  provider: string;
-  created_at: string;
-};
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import { MetricCard } from "@/components/layout/metric-card";
+import { Card, CardContent } from "@/components/ui/card";
+import { BarChart3, RefreshCw, Upload, Download, Filter, ArrowRight } from "lucide-react";
 
 export default function Dashboard() {
-  const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [message, setMessage] = useState({ text: "", type: "" });
-  const [blingKey, setBlingKey] = useState("");
-  const [mlKey, setMlKey] = useState("");
+  const router = useRouter();
 
   useEffect(() => {
-    const fetchIntegrations = async () => {
-      try {
-        const res = await fetch("/api/integrations");
-        const data = await res.json();
-        setIntegrations(data.integrations || []);
-      } catch (err) {
-        console.error("Erro ao carregar integrações", err);
-      } finally {
-        setLoading(false);
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
       }
+      setUser(user);
+      setLoading(false);
     };
-    fetchIntegrations();
-  }, []);
 
-  const showMessage = (text: string, type: "success" | "error") => {
-    setMessage({ text, type });
-    setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-  };
-
-  const handleDisconnect = async (id: string) => {
-    if (!confirm("Tem certeza que deseja desconectar esta integração?")) return;
-    try {
-      const res = await fetch(`/api/integrations/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setIntegrations((prev) => prev.filter((i) => i.id !== id));
-        showMessage("Integração removida com sucesso!", "success");
-      } else {
-        showMessage("Erro ao remover integração", "error");
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!session?.user) {
+          router.push("/login");
+        } else {
+          setUser(session.user);
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      console.error("Erro ao remover integração", err);
-      showMessage("Erro ao remover integração", "error");
-    }
-  };
+    );
 
-  // Redireciona para o OAuth de cada provedor
-  const handleConnect = (provider: "ml" | "bling") => {
-    // Em desenvolvimento, usamos localhost; em produção, usamos a URL do Vercel
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? process.env.NEXT_PUBLIC_APP_URL 
-      : 'http://localhost:3000';
+    checkUser();
 
-    if (provider === "bling") {
-      const redirectUri = `${baseUrl}/api/auth/bling/callback`;
-      window.location.href = `https://www.bling.com.br/Api/v3/oauth/authorize?response_type=code&client_id=${process.env.NEXT_PUBLIC_BLING_CLIENT_ID}&redirect_uri=${redirectUri}`;
-    }
-    if (provider === "ml") {
-      const redirectUri = `${baseUrl}/api/auth/ml/callback`;
-      window.location.href = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${process.env.NEXT_PUBLIC_ML_CLIENT_ID}&redirect_uri=${redirectUri}`;
-    }
-  };
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [router]);
 
-  const handleSaveIntegrations = async () => {
-    setActionLoading("save");
-    try {
-      const res = await fetch("/api/integrations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blingKey, mlKey }),
-      });
-      
-      if (res.ok) {
-        showMessage("Integrações salvas com sucesso!", "success");
-        // Recarregar integrações
-        const integrationsRes = await fetch("/api/integrations");
-        const integrationsData = await integrationsRes.json();
-        setIntegrations(integrationsData.integrations || []);
-      } else {
-        showMessage("Erro ao salvar integrações", "error");
-      }
-    } catch (err) {
-      console.error("Erro ao salvar integrações", err);
-      showMessage("Erro ao salvar integrações", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleImportCategories = async () => {
-    setActionLoading("import-categories");
-    try {
-      const res = await fetch("/api/categories/import", { method: "POST" });
-      if (res.ok) {
-        showMessage("Categorias importadas com sucesso!", "success");
-      } else {
-        showMessage("Erro ao importar categorias", "error");
-      }
-    } catch (err) {
-      console.error("Erro ao importar categorias", err);
-      showMessage("Erro ao importar categorias", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleSyncCategories = async () => {
-    setActionLoading("sync-categories");
-    try {
-      const res = await fetch("/api/categories/sync", { method: "POST" });
-      if (res.ok) {
-        showMessage("Categorias sincronizadas com sucesso!", "success");
-      } else {
-        showMessage("Erro ao sincronizar categorias", "error");
-      }
-    } catch (err) {
-      console.error("Erro ao sincronizar categorias", err);
-      showMessage("Erro ao sincronizar categorias", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleImportProducts = async () => {
-    setActionLoading("import-products");
-    try {
-      const res = await fetch("/api/products/import", { method: "POST" });
-      if (res.ok) {
-        showMessage("Produtos importados com sucesso!", "success");
-      } else {
-        showMessage("Erro ao importar produtos", "error");
-      }
-    } catch (err) {
-      console.error("Erro ao importar produtos", err);
-      showMessage("Erro ao importar produtos", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleAssociateProducts = async () => {
-    setActionLoading("associate-products");
-    try {
-      const res = await fetch("/api/products/associate", { method: "POST" });
-      if (res.ok) {
-        showMessage("Produtos associados com sucesso!", "success");
-      } else {
-        showMessage("Erro ao associar produtos", "error");
-      }
-    } catch (err) {
-      console.error("Erro ao associar produtos", err);
-      showMessage("Erro ao associar produtos", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handlePublishProducts = async () => {
-    setActionLoading("publish-products");
-    try {
-      const res = await fetch("/api/products/publish", { method: "POST" });
-      if (res.ok) {
-        showMessage("Produtos publicados com sucesso!", "success");
-      } else {
-        showMessage("Erro ao publicar produtos", "error");
-      }
-    } catch (err) {
-      console.error("Erro ao publicar produtos", err);
-      showMessage("Erro ao publicar produtos", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const providerInfo: Record<
-    string,
-    { name: string; logo: string; color: string }
-  > = {
-    ml: {
-      name: "Mercado Livre",
-      logo: "/mercadolivre-logo.png",
-      color: "bg-yellow-400",
-    },
-    bling: { 
-      name: "Bling", 
-      logo: "/bling-logo.png", 
-      color: "bg-green-500" 
-    },
-  };
-
-  const connectedProviders = integrations.map((i) => i.provider);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-500"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      {/* Topbar */}
-      <header className="bg-white shadow p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Image src="/bling-logo.png" width={40} height={40} alt="SynVolt" />
-          <h1 className="text-xl font-bold text-sky-700">SynVolt Saas</h1>
-        </div>
-        <Button variant="outline">Sair</Button>
-      </header>
+    <div className="p-8">
+      {/* Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <MetricCard
+          title="Vendas Hoje"
+          value="R$ 24.890"
+          change="12.5%"
+          changeType="positive"
+          icon="trending"
+          description="vs. R$ 22.150 ontem"
+        />
+        <MetricCard
+          title="Pedidos"
+          value="1.847"
+          change="8.2%"
+          changeType="positive"
+          icon="shopping"
+          description="47 novos hoje"
+        />
+        <MetricCard
+          title="Produtos"
+          value="2.156"
+          icon="package"
+          description="856 sincronizados"
+        />
+        <MetricCard
+          title="Clientes"
+          value="3.241"
+          change="15"
+          changeType="positive"
+          icon="users"
+          description="15 novos hoje"
+        />
+      </div>
 
-      {/* Mensagem de feedback */}
-      {message.text && (
-        <div className={`fixed top-4 right-4 p-4 rounded-md shadow-md ${
-          message.type === "success" ? "bg-green-500 text-white" : "bg-red-500 text-white"
-        }`}>
-          {message.text}
-        </div>
-      )}
-
-      {/* Main Tabs */}
-      <main className="p-6">
-        <Tabs defaultValue="integracoes" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="integracoes">🔑 Integrações</TabsTrigger>
-            <TabsTrigger value="catalogo">📦 Catálogo</TabsTrigger>
-            <TabsTrigger value="produtos">🛒 Produtos</TabsTrigger>
-          </TabsList>
-
-          {/* Integrações */}
-          <TabsContent value="integracoes">
-            <div className="space-y-6">
-              {/* Formulário para chaves de API */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Cadastro de Integrações</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="bling">🔑 Token Bling</Label>
-                    <Input
-                      id="bling"
-                      placeholder="Cole seu token Bling"
-                      value={blingKey}
-                      onChange={(e) => setBlingKey(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="ml">🔑 Token Mercado Livre</Label>
-                    <Input
-                      id="ml"
-                      placeholder="Cole seu token Mercado Livre"
-                      value={mlKey}
-                      onChange={(e) => setMlKey(e.target.value)}
-                    />
-                  </div>
-                  <Button 
-                    className="w-full" 
-                    onClick={handleSaveIntegrations}
-                    disabled={actionLoading === "save"}
-                  >
-                    {actionLoading === "save" ? "Salvando..." : "💾 Salvar Integrações"}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Lista de integrações já feitas */}
-              {integrations.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {integrations.map((integration) => {
-                    const info = providerInfo[integration.provider] || {
-                      name: integration.provider,
-                      logo: "/default.png",
-                      color: "bg-gray-400",
-                    };
-                    return (
-                      <div
-                        key={integration.id}
-                        className="bg-white rounded-xl shadow-md p-6 flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div
-                            className={`w-16 h-16 flex items-center justify-center rounded-full ${info.color}`}
-                          >
-                            <Image
-                              src={info.logo}
-                              alt={info.name}
-                              width={40}
-                              height={40}
-                            />
-                          </div>
-                          <div>
-                            <h2 className="text-lg font-semibold">{info.name}</h2>
-                            <p className="text-sm text-gray-500">
-                              Conectado em:{" "}
-                              {new Date(
-                                integration.created_at
-                              ).toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleDisconnect(integration.id)}
-                          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
-                        >
-                          Desconectar
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Botões para conectar se ainda não tiver */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {!connectedProviders.includes("bling") && (
-                  <button
-                    onClick={() => handleConnect("bling")}
-                    className="px-6 py-4 bg-green-500 text-white font-semibold rounded-xl shadow hover:bg-green-600 transition"
-                  >
-                    Conectar Bling
-                  </button>
-                )}
-                {!connectedProviders.includes("ml") && (
-                  <button
-                    onClick={() => handleConnect("ml")}
-                    className="px-6 py-4 bg-yellow-400 text-gray-900 font-semibold rounded-xl shadow hover:bg-yellow-500 transition"
-                  >
-                    Conectar Mercado Livre
-                  </button>
-                )}
-              </div>
+      {/* Charts and Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        {/* Revenue Chart */}
+        <div className="lg:col-span-2 card-premium p-8 rounded-2xl">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Receita dos Últimos 7 Dias</h3>
+              <p className="text-gray-500 mt-1">Acompanhe o crescimento diário</p>
             </div>
-          </TabsContent>
+            <div className="flex space-x-2">
+              <button className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg shadow-sm">7D</button>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">30D</button>
+              <button className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">90D</button>
+            </div>
+          </div>
+          <div className="h-72 flex items-end justify-between space-x-3">
+            {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day, index) => (
+              <div key={day} className="flex flex-col items-center group">
+                <div 
+                  className="chart-bar w-12 cursor-pointer" 
+                  style={{ height: `${35 + (Math.random() * 60)}%` }}
+                ></div>
+                <span className="text-sm text-gray-500 mt-3 font-medium">{day}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* Quick Actions */}
+        <div className="card-premium p-8 rounded-2xl">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Ações Rápidas</h3>
+          <div className="space-y-4">
+            <button className="w-full flex items-center p-4 text-left bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 rounded-xl transition-all duration-300 border border-green-100 hover:border-green-200">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-400 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                <RefreshCw className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">Sincronizar Produtos</p>
+                <p className="text-sm text-gray-600">ML  Bling automático</p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-gray-400 ml-auto" />
+            </button>
+            
+            <button className="w-full flex items-center p-4 text-left bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-xl transition-all duration-300 border border-blue-100 hover:border-blue-200">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                <Upload className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">Importar Planilha</p>
+                <p className="text-sm text-gray-600">Upload em lote CSV/Excel</p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-gray-400 ml-auto" />
+            </button>
+            
+            <button className="w-full flex items-center p-4 text-left bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 rounded-xl transition-all duration-300 border border-purple-100 hover:border-purple-200">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                <Download className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">Exportar Relatório</p>
+                <p className="text-sm text-gray-600">Dados completos PDF/Excel</p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-gray-400 ml-auto" />
+            </button>
+          </div>
+        </div>
+      </div>
 
-          {/* Catálogo */}
-          <TabsContent value="catalogo">
-            <Card>
-              <CardHeader>
-                <CardTitle>Gerenciamento de Catálogo</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button 
-                  className="w-full" 
-                  onClick={handleImportCategories}
-                  disabled={actionLoading === "import-categories"}
-                >
-                  {actionLoading === "import-categories" ? "Importando..." : "📥 Importar Categorias do Mercado Livre"}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={handleSyncCategories}
-                  disabled={actionLoading === "sync-categories"}
-                >
-                  {actionLoading === "sync-categories" ? "Sincronizando..." : "🔄 Sincronizar Categorias com Bling"}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Produtos */}
-          <TabsContent value="produtos">
-            <Card>
-              <CardHeader>
-                <CardTitle>Gerenciamento de Produtos</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button 
-                  className="w-full"
-                  onClick={handleImportProducts}
-                  disabled={actionLoading === "import-products"}
-                >
-                  {actionLoading === "import-products" ? "Importando..." : "📥 Importar Produtos do Bling"}
-                </Button>
-                <Button 
-                  className="w-full" 
-                  variant="outline"
-                  onClick={handleAssociateProducts}
-                  disabled={actionLoading === "associate-products"}
-                >
-                  {actionLoading === "associate-products" ? "Associando..." : "🔗 Associar Produtos às Categorias"}
-                </Button>
-                <Button 
-                  className="w-full"
-                  onClick={handlePublishProducts}
-                  disabled={actionLoading === "publish-products"}
-                >
-                  {actionLoading === "publish-products" ? "Publicando..." : "⬆️ Publicar em Massa no Mercado Livre"}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </main>
+      {/* Activity Table */}
+      <div className="card-premium rounded-2xl overflow-hidden">
+        <div className="px-8 py-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Atividade Recente</h3>
+              <p className="text-gray-500 mt-1">Últimas transações e sincronizações</p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors flex items-center space-x-2">
+                <Filter className="w-4 h-4" />
+                <span>Filtrar</span>
+              </button>
+              <button className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors flex items-center space-x-2">
+                <Download className="w-4 h-4" />
+                <span>Exportar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-8 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Cliente</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Produto</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Valor</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Data</th>
+                <th className="px-8 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-100">
+              <tr className="hover:bg-gray-50 transition-colors">
+                <td className="px-8 py-6">
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                      <span className="text-white font-bold text-sm">MS</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Maria Santos</p>
+                      <p className="text-sm text-gray-500">maria@email.com</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-6 text-sm font-medium text-gray-900">iPhone 15 Pro Max 256GB</td>
+                <td className="px-6 py-6">
+                  <span className="status-badge bg-green-100 text-green-800">Entregue</span>
+                </td>
+                <td className="px-6 py-6 text-sm font-bold text-gray-900">R$ 8.999,00</td>
+                <td className="px-6 py-6 text-sm text-gray-500">Hoje, 14:30</td>
+                <td className="px-8 py-6 text-right">
+                  <button className="text-indigo-600 hover:text-indigo-800 font-semibold text-sm">Ver detalhes</button>
+                </td>
+              </tr>
+              <tr className="hover:bg-gray-50 transition-colors">
+                <td className="px-8 py-6">
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-400 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                      <span className="text-white font-bold text-sm">CL</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Carlos Lima</p>
+                      <p className="text-sm text-gray-500">carlos@email.com</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-6 text-sm font-medium text-gray-900">MacBook Air M3 512GB</td>
+                <td className="px-6 py-6">
+                  <span className="status-badge bg-yellow-100 text-yellow-800">Processando</span>
+                </td>
+                <td className="px-6 py-6 text-sm font-bold text-gray-900">R$ 12.999,00</td>
+                <td className="px-6 py-6 text-sm text-gray-500">Ontem, 16:45</td>
+                <td className="px-8 py-6 text-right">
+                  <button className="text-indigo-600 hover:text-indigo-800 font-semibold text-sm">Ver detalhes</button>
+                </td>
+              </tr>
+              <tr className="hover:bg-gray-50 transition-colors">
+                <td className="px-8 py-6">
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                      <span className="text-white font-bold text-sm">AC</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Ana Costa</p>
+                      <p className="text-sm text-gray-500">ana@email.com</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-6 text-sm font-medium text-gray-900">iPad Pro 12.9" 1TB</td>
+                <td className="px-6 py-6">
+                  <span className="status-badge bg-blue-100 text-blue-800">Enviado</span>
+                </td>
+                <td className="px-6 py-6 text-sm font-bold text-gray-900">R$ 7.499,00</td>
+                <td className="px-6 py-6 text-sm text-gray-500">2 dias atrás</td>
+                <td className="px-8 py-6 text-right">
+                  <button className="text-indigo-600 hover:text-indigo-800 font-semibold text-sm">Ver detalhes</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

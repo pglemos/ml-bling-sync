@@ -1,13 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase';
-import axios from 'axios';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabaseClient';
 
 export async function POST(request: NextRequest) {
   try {
     const userId = 'user-test-id';
     
     // Obter token do Bling
-    const { data: integration, error: integrationError } = await supabaseServer
+    const { data: integration, error: integrationError } = await supabase
       .from('user_integrations')
       .select('bling_access_token')
       .eq('user_id', userId)
@@ -23,7 +22,7 @@ export async function POST(request: NextRequest) {
     const allProducts = [];
     
     while (hasMore) {
-      const response = await axios.get(
+      const response = await fetch(
         `https://bling.com.br/Api/v3/produtos?pagina=${page}`,
         {
           headers: {
@@ -32,7 +31,12 @@ export async function POST(request: NextRequest) {
         }
       );
       
-      const products = response.data.data || [];
+      if (!response.ok) {
+        throw new Error('Erro ao buscar produtos do Bling');
+      }
+      
+      const data = await response.json();
+      const products = data.data || [];
       allProducts.push(...products);
       
       hasMore = products.length > 0;
@@ -40,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Salvar no banco
-    const { error: saveError } = await supabaseServer
+    const { error: saveError } = await supabase
       .from('products')
       .upsert(
         allProducts.map((product: any) => ({

@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabaseClient';
 
 export async function POST(request: NextRequest) {
   try {
     const userId = 'user-test-id';
     
     // Obter produtos sem associação
-    const { data: products, error: productsError } = await supabaseServer
+    const { data: products, error: productsError } = await supabase
       .from('products')
       .select('*')
       .eq('user_id', userId)
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     if (productsError) throw productsError;
     
     // Obter categorias sincronizadas
-    const { data: categories, error: categoriesError } = await supabaseServer
+    const { data: categories, error: categoriesError } = await supabase
       .from('categories')
       .select('*')
       .eq('user_id', userId)
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         }
         
         // Atualizar produto
-        const { error: updateError } = await supabaseServer
+        const { error: updateError } = await supabase
           .from('products')
           .update({ 
             ml_category_id: category.provider_id,

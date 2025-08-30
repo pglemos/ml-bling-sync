@@ -1,12 +1,12 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase';
-import axios from 'axios';
+import { supabase } from '@/lib/supabaseClient';
 
 export async function POST(request: NextRequest) {
   try {
     const userId = 'user-test-id';
     
-    const { data: products, error: productsError } = await supabaseServer
+    // Obter produtos associados mas não publicados
+    const { data: products, error: productsError } = await supabase
       .from('products')
       .select('*')
       .eq('user_id', userId)
@@ -15,7 +15,8 @@ export async function POST(request: NextRequest) {
     
     if (productsError) throw productsError;
     
-    const { data: integration, error: integrationError } = await supabaseServer
+    // Obter token do ML
+    const { data: integration, error: integrationError } = await supabase
       .from('user_integrations')
       .select('ml_access_token')
       .eq('user_id', userId)
@@ -25,9 +26,11 @@ export async function POST(request: NextRequest) {
       throw new Error('Token do Mercado Livre não encontrado');
     }
     
+    // Publicar produtos
     const results = await Promise.all(
       products.map(async (product) => {
         try {
+          // Preparar dados do produto para ML
           const mlProduct = {
             title: product.name,
             category_id: product.ml_category_id,
@@ -45,20 +48,25 @@ export async function POST(request: NextRequest) {
             ] : []
           };
           
-          const response = await axios.post(
-            'https://api.mercadolibre.com/items',
-            mlProduct,
-            {
-              headers: {
-                'Authorization': `Bearer ${integration.ml_access_token}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
+          // Publicar no ML
+          const response = await fetch('https://api.mercadolibre.com/items', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${integration.ml_access_token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(mlProduct)
+          });
           
-          const mlProductId = response.data.id;
+          if (!response.ok) {
+            throw new Error('Erro ao publicar produto no ML');
+          }
           
-          await supabaseServer
+          const responseData = await response.json();
+          const mlProductId = responseData.id;
+          
+          // Atualizar produto no banco
+          await supabase
             .from('products')
             .update({ 
               ml_product_id: mlProductId,
@@ -75,7 +83,8 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           console.error('Erro ao publicar produto:', product.id, error);
           
-          await supabaseServer
+          // Atualizar status de erro
+          await supabase
             .from('products')
             .update({ 
               ml_status: 'error',
