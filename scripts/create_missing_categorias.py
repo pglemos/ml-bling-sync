@@ -1,7 +1,7 @@
 import requests
 import time
 from typing import Optional, Dict, Any
-from utils import get_integration_tokens, supabase
+from .utils import get_integration_tokens, supabase
 
 def get_item_category_ml(item_id: str, access_token: str) -> Optional[str]:
     """Busca o item no ML e retorna o category_id"""

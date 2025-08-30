@@ -1,5 +1,5 @@
-from create_missing_categorias import sync_categories
-from sync_products import sync_products
+from scripts.create_missing_categorias import sync_categories
+from scripts.sync_products import sync_products
 
 def main():
     print("🚀 Iniciando sincronização...")

@@ -2,7 +2,7 @@ import time
 import requests
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
-from utils import supabase, get_integration_tokens
+from .utils import supabase, get_integration_tokens
 
 ML_API = "https://api.mercadolibre.com"
 
