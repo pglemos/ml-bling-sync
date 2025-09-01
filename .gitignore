@@ -48,6 +48,9 @@ MANIFEST
 *.tsbuildinfo
 next-env.d.ts
 
+# Continue.dev
+.continue/config.json
+
 # IDE
 .vscode/
 .idea/
