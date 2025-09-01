@@ -1,0 +1,10 @@
+{
+  "total_products": 125,
+  "synced_products": 98,
+  "pending_products": 27,
+  "failed_products": 3,
+  "last_sync": "2023-10-15T18:45:00Z",
+  "ml_listings": 98,
+  "bling_products": 125,
+  "sync_success_rate": 92.5
+}

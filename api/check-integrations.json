@@ -1,0 +1,16 @@
+{
+  "ml": {
+    "valid": true,
+    "apiWorking": true,
+    "productsSynced": false,
+    "expiresAt": "2024-12-31T23:59:59Z",
+    "scopes": ["read", "write"]
+  },
+  "bling": {
+    "valid": true,
+    "apiWorking": true,
+    "categoriesCreated": true,
+    "expiresAt": "2024-12-31T23:59:59Z",
+    "scopes": ["products", "orders"]
+  }
+}

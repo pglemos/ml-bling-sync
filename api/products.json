@@ -1,0 +1,52 @@
+[
+  {
+    "id": 1,
+    "title": "Smartphone Galaxy S21",
+    "price": 3999.99,
+    "stock": 15,
+    "ml_id": "MLB123456",
+    "bling_id": "12345",
+    "status": "active",
+    "last_sync": "2023-10-15T14:30:00Z"
+  },
+  {
+    "id": 2,
+    "title": "Notebook Dell Inspiron",
+    "price": 4599.90,
+    "stock": 8,
+    "ml_id": "MLB789012",
+    "bling_id": "67890",
+    "status": "active",
+    "last_sync": "2023-10-14T10:15:00Z"
+  },
+  {
+    "id": 3,
+    "title": "Smart TV LG 55 polegadas",
+    "price": 2899.00,
+    "stock": 12,
+    "ml_id": "MLB345678",
+    "bling_id": "23456",
+    "status": "active",
+    "last_sync": "2023-10-13T16:45:00Z"
+  },
+  {
+    "id": 4,
+    "title": "Fone de Ouvido JBL",
+    "price": 299.90,
+    "stock": 30,
+    "ml_id": "MLB901234",
+    "bling_id": "78901",
+    "status": "active",
+    "last_sync": "2023-10-12T09:20:00Z"
+  },
+  {
+    "id": 5,
+    "title": "Câmera Canon EOS",
+    "price": 3499.00,
+    "stock": 5,
+    "ml_id": "MLB567890",
+    "bling_id": "34567",
+    "status": "inactive",
+    "last_sync": "2023-10-11T13:10:00Z"
+  }
+]
