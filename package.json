@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd frontend && npm run start",
     "lint": "eslint"
   },
   "dependencies": {
