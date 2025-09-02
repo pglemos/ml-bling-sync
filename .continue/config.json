@@ -1,11 +1,23 @@
 {
   "models": [
-    { "title": "Qwen 2.5 Coder 7B", "provider": "ollama", "model": "qwen2.5-coder:7b" },
-    { "title": "DeepSeek-Coder-V2 16B", "provider": "ollama", "model": "deepseek-coder-v2:16b" },
-    { "title": "CodeLLaMa 13B", "provider": "ollama", "model": "codellama:13b" },
-    { "title": "WizardCoder 7B", "provider": "ollama", "model": "wizardcoder:7b" },
-    { "title": "Granite-Code 8B", "provider": "ollama", "model": "granite-code:8b" },
-    { "title": "StarCoder2 3B", "provider": "ollama", "model": "starcoder2:3b" }
+    {
+      "title": "Agente Rápido (GPT-4o-mini)",
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "apiKey": "sk-proj-xxxxxx",
+      "systemMessage": "Você é um pair programmer. Sempre responda em português técnico e claro. Sua função é colaborar ativamente com o desenvolvedor, sugerindo soluções, revisando código e explicando suas decisões passo a passo. Detecte automaticamente a linguagem do código (Python, JavaScript, TypeScript, SQL, etc.) e adapte suas respostas às boas práticas dessa linguagem. Sempre forneça exemplos funcionais de código e explique como integrá-los no projeto do usuário."
+    },
+    {
+      "title": "Agente Avançado (GPT-4.1)",
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "apiKey": "sk-proj-xxxxxx",
+      "systemMessage": "Você é um consultor sênior de software e pair programmer. Sempre responda em português técnico e detalhado. Antes de responder, identifique automaticamente a linguagem do código fornecido. Ao propor uma solução, explique cada passo do raciocínio, as vantagens da abordagem escolhida e possíveis alternativas. Para Python, siga PEP8 e foque em legibilidade e performance; para JavaScript/TypeScript, use padrões modernos (ES6+, async/await); para SQL, foque em otimização e índices; para APIs, reforce segurança, escalabilidade e boas práticas REST/GraphQL. Sempre que possível, sugira melhorias arquiteturais e práticas de clean code."
+    }
   ],
-  "defaultModel": "DeepSeek-Coder-V2 16B"
+  "tabAutocompleteModel": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "apiKey": "sk-proj-xxxxxx"
+  }
 }

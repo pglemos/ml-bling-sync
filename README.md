@@ -2,49 +2,99 @@
 
 Integração entre Mercado Livre e Bling para sincronização automática de produtos e categorias.
 
-## Getting Started
+## 🚀 Status do Projeto
 
-### Execução Local
+✅ **Frontend**: Dashboard funcional com Next.js e Tailwind CSS  
+✅ **Backend**: API Python funcional no Vercel  
+✅ **Deploy**: Hospedado em [https://ml-bling-sync.vercel.app](https://ml-bling-sync.vercel.app)  
+🔄 **Integração**: Em desenvolvimento  
 
-Para executar o projeto localmente:
+## 🏗️ Estrutura do Projeto
 
-```bash
-python api.py
+```
+ml-bling-sync/
+├── frontend/                 # Aplicação Next.js
+│   ├── src/
+│   │   ├── app/             # Páginas da aplicação
+│   │   ├── components/      # Componentes React
+│   │   ├── services/        # Serviços de API
+│   │   └── styles/          # Estilos CSS
+│   ├── package.json         # Dependências Node.js
+│   └── tailwind.config.js   # Configuração Tailwind
+├── backend/                  # API Python (estrutura para Node.js)
+│   ├── src/                 # Código fonte
+│   └── package.json         # Dependências Node.js
+├── api/                     # API Python para Vercel
+│   └── index.py            # Handler principal
+├── dashboard.html           # Dashboard estático (legado)
+├── vercel.json             # Configuração Vercel
+└── docker-compose.yml      # Configuração Docker
 ```
 
-Acesse o dashboard em [http://localhost:8000](http://localhost:8000) com seu navegador.
+## 🚀 Execução Local
 
-**Alternativa:** Se o servidor local não estiver funcionando, você pode acessar o dashboard diretamente pelo arquivo:
-`file:///C:/Users/Pedro/ml-bling-sync/dashboard.html`
+### Opção 1: Dashboard Online (Recomendado)
+Acesse diretamente: [https://ml-bling-sync.vercel.app/dashboard.html](https://ml-bling-sync.vercel.app/dashboard.html)
 
-### Versão Hospedada no Vercel
+### Opção 2: Execução Local
+```bash
+# Instalar dependências do frontend
+cd frontend
+npm install
+npm run dev
 
-Este projeto está configurado para ser executado no Vercel. Acesse o dashboard em [https://ml-bling-sync.vercel.app](https://ml-bling-sync.vercel.app).
+# Acessar em http://localhost:3000
+```
 
-## Estrutura do Projeto
+### Opção 3: Docker
+```bash
+docker-compose up -d
+# Frontend: http://localhost:3000
+# Backend: http://localhost:4000
+```
 
-- `api.py` - API FastAPI para sincronização
-- `dashboard.html` - Interface de usuário para gerenciar a sincronização
-- `create_missing_categorias.py` - Script para sincronizar categorias
-- `sync_products.py` - Script para sincronizar produtos
-- `vercel.json` - Configuração para implantação no Vercel
-- `requirements.txt` - Dependências do projeto
+## 🔧 Funcionalidades Implementadas
 
-## Funcionalidades
+- ✅ Dashboard responsivo com Tailwind CSS
+- ✅ Navegação entre seções (Dashboard, Integrações, Produtos, etc.)
+- ✅ Sistema de notificações toast
+- ✅ Spinner de carregamento
+- ✅ Estrutura para integração com APIs
+- ✅ Design moderno e responsivo
 
-- Sincronização automática de categorias entre Mercado Livre e Bling
-- Sincronização automática de produtos entre Mercado Livre e Bling
-- Dashboard para monitoramento e controle da sincronização
-- API para integração com outros sistemas
+## 🚧 Em Desenvolvimento
 
-## Deploy no Vercel
+- 🔄 Integração com Mercado Livre
+- 🔄 Integração com Bling
+- 🔄 Sincronização de produtos
+- 🔄 Sincronização de categorias
+- 🔄 Sistema de logs
+- 🔄 Autenticação de usuários
 
-Este projeto está configurado para ser implantado no Vercel. Siga os passos abaixo para implantar:
+## 🌐 Deploy
 
-1. Crie uma conta no [Vercel](https://vercel.com) se ainda não tiver uma
-2. Instale a CLI do Vercel: `npm i -g vercel`
-3. Faça login na sua conta: `vercel login`
-4. No diretório do projeto, execute: `vercel`
-5. Siga as instruções na tela para completar a implantação
+O projeto está configurado para deploy automático no Vercel:
+- **URL**: https://ml-bling-sync.vercel.app
+- **API**: https://ml-bling-sync.vercel.app/api
+- **Dashboard**: https://ml-bling-sync.vercel.app/dashboard.html
 
-Alternativamente, você pode conectar seu repositório GitHub ao Vercel para implantação automática.
+## 📝 Próximos Passos
+
+1. Implementar autenticação JWT
+2. Conectar com APIs do Mercado Livre
+3. Conectar com APIs do Bling
+4. Implementar sincronização automática
+5. Adicionar sistema de logs
+6. Implementar testes automatizados
+
+## 🤝 Contribuição
+
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request
+
+## 📄 Licença
+
+Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.

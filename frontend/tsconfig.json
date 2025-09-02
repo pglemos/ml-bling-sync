@@ -1,0 +1,54 @@
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "es6"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/components/*": ["./src/components/*"],
+      "@/components/common/*": ["./src/components/common/*"],
+      "@/components/dashboard/*": ["./src/components/dashboard/*"],
+      "@/components/products/*": ["./src/components/products/*"],
+      "@/components/orders/*": ["./src/components/orders/*"],
+      "@/components/integrations/*": ["./src/components/integrations/*"],
+      "@/components/returns/*": ["./src/components/returns/*"],
+      "@/components/layout/*": ["./src/components/layout/*"],
+      "@/components/catalog/*": ["./src/components/catalog/*"],
+      "@/components/financial/*": ["./src/components/financial/*"],
+      "@/components/inventory/*": ["./src/components/inventory/*"],
+      "@/components/kits/*": ["./src/components/kits/*"],
+      "@/types/*": ["./src/types/*"],
+      "@/services/*": ["./src/services/*"],
+      "@/hooks/*": ["./src/hooks/*"],
+      "@/contexts/*": ["./src/contexts/*"],
+      "@/lib/*": ["./src/lib/*"],
+      "@/styles/*": ["./src/styles/*"],
+      "@/app/*": ["./src/app/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
