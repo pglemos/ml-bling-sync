@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     // Buscar produtos do Bling (paginação)
     let page = 1;
     let hasMore = true;
-    const allProducts = [];
+    const allProducts: any[] = [];
     
     while (hasMore) {
       const response = await fetch(
