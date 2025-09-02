@@ -11,7 +11,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
@@ -122,7 +122,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
             </div>
             <nav className="flex items-center gap-4">
               <Link href="/login">
-                <Button variant="ghost">Entrar</Button>
+                <Button variant="outline">Entrar</Button>
               </Link>
               <Link href="/register">
                 <Button variant="outline">Registrar</Button>

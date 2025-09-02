@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { BarChart3, RefreshCw, Upload, Download, Filter, ArrowRight } from "lucide-react";
 
 export default function Dashboard() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 

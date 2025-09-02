@@ -5,7 +5,7 @@ import Image from "next/image";
 
 export default function IntegrationSuccess() {
   const searchParams = useSearchParams();
-  const provider = searchParams.get("provider");
+  const provider = searchParams?.get("provider");
 
   const providers: Record<
     string,

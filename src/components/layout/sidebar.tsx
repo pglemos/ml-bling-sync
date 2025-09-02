@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -71,7 +71,7 @@ export function SidebarItem({
   currentPage
 }: SidebarItemProps) {
   const pathname = usePathname();
-  const isActive = page === currentPage || pathname.startsWith(href);
+  const isActive = page === currentPage || pathname?.startsWith(href);
   
   const badgeClasses = {
     default: "bg-indigo-100 text-indigo-600",

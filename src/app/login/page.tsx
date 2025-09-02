@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -17,7 +17,7 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const message = searchParams.get('message');
+    const message = searchParams?.get('message');
     if (message === 'session_expired') {
       toast({
         title: "Sessão expirada",
