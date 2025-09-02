@@ -7,8 +7,19 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "api/index.py"
+      "src": "/api/(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/dashboard",
+      "dest": "/dashboard.html"
+    },
+    {
+      "src": "/",
+      "dest": "/dashboard.html"
     }
   ]
 }
