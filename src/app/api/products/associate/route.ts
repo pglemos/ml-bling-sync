@@ -1,85 +1,61 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = 'user-test-id';
+    const { productId, marketplaceId, marketplaceProductId } = await request.json();
     
-    // Obter produtos sem associação
-    const { data: products, error: productsError } = await supabase
+    if (!productId || !marketplaceId || !marketplaceProductId) {
+      return NextResponse.json(
+        { error: 'Dados obrigatórios não fornecidos' },
+        { status: 400 }
+      );
+    }
+    
+    // Verificar se o produto existe
+    const { data: product, error: productError } = await supabase
       .from('products')
-      .select('*')
-      .eq('user_id', userId)
-      .is('ml_category_id', null);
+      .select('id')
+      .eq('id', productId)
+      .single();
     
-    if (productsError) throw productsError;
+    if (productError || !product) {
+      return NextResponse.json(
+        { error: 'Produto não encontrado' },
+        { status: 404 }
+      );
+    }
     
-    // Obter categorias sincronizadas
-    const { data: categories, error: categoriesError } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('sync_status', 'synced');
-    
-    if (categoriesError) throw categoriesError;
-    
-    // Criar mapa de categorias
-    const categoryMap = new Map();
-    categories.forEach(cat => {
-      if (cat.bling_id) {
-        categoryMap.set(cat.bling_id, cat);
-      }
-    });
-    
-    // Associar produtos
-    const results = await Promise.all(
-      products.map(async (product) => {
-        const category = categoryMap.get(product.category_id);
-        
-        if (!category) {
-          return { 
-            productId: product.id, 
-            status: 'no_category',
-            message: 'Categoria não encontrada' 
-          };
-        }
-        
-        // Atualizar produto
-        const { error: updateError } = await supabase
-          .from('products')
-          .update({ 
-            ml_category_id: category.provider_id,
-            associated_at: new Date().toISOString()
-          })
-          .eq('id', product.id);
-        
-        if (updateError) {
-          return { 
-            productId: product.id, 
-            status: 'error',
-            message: updateError.message 
-          };
-        }
-        
-        return { 
-          productId: product.id, 
-          status: 'associated',
-          categoryId: category.provider_id 
-        };
+    // Criar associação
+    const { data, error } = await supabase
+      .from('product_marketplace_associations')
+      .upsert({
+        product_id: productId,
+        marketplace_id: marketplaceId,
+        marketplace_product_id: marketplaceProductId,
+        status: 'associated',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'product_id,marketplace_id'
       })
-    );
+      .select()
+      .single();
     
-    return NextResponse.json({ 
+    if (error) {
+      throw error;
+    }
+    
+    return NextResponse.json({
       success: true,
-      message: 'Produtos associados com sucesso',
-      results,
-      total: products.length,
-      associated: results.filter(r => r.status === 'associated').length
+      message: 'Produto associado com sucesso',
+      association: data
     });
-  } catch (error) {
-    console.error('Erro ao associar produtos:', error);
+    
+  } catch (error: any) {
+    console.error('Erro ao associar produto:', error);
     return NextResponse.json(
-      { error: 'Erro ao associar produtos' },
+      { error: error.message || 'Erro interno do servidor' },
       { status: 500 }
     );
   }

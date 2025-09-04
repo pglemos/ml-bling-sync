@@ -1,5 +1,6 @@
-import { Toaster } from "@/components/toaster";
-import { AuthLayout } from "@/components/layout/auth-layout";
+import { Toaster } from "@/components/shared/toaster";
+import { AuthLayout } from "@/components/shared/auth-layout";
+import { ThemeProvider } from "@/components/shared/theme-provider";
 import "./globals.css";
 
 export const metadata = {
@@ -13,12 +14,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
-      <body className="min-h-screen bg-gray-50">
-        <AuthLayout>
-          {children}
-        </AuthLayout>
-        <Toaster />
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body className="min-h-screen">
+        <ThemeProvider>
+          <AuthLayout>
+            {children}
+          </AuthLayout>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

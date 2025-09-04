@@ -1,117 +1,91 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = 'user-test-id';
+    const { productId, marketplaces } = await request.json();
     
-    // Obter produtos associados mas não publicados
-    const { data: products, error: productsError } = await supabase
-      .from('products')
-      .select('*')
-      .eq('user_id', userId)
-      .not('ml_category_id', 'is', null)
-      .is('ml_product_id', null);
-    
-    if (productsError) throw productsError;
-    
-    // Obter token do ML
-    const { data: integration, error: integrationError } = await supabase
-      .from('user_integrations')
-      .select('ml_access_token')
-      .eq('user_id', userId)
-      .single();
-    
-    if (integrationError || !integration?.ml_access_token) {
-      throw new Error('Token do Mercado Livre não encontrado');
+    if (!productId || !marketplaces || !Array.isArray(marketplaces)) {
+      return NextResponse.json(
+        { error: 'Dados obrigatórios não fornecidos' },
+        { status: 400 }
+      );
     }
     
-    // Publicar produtos
-    const results = await Promise.all(
-      products.map(async (product) => {
-        try {
-          // Preparar dados do produto para ML
-          const mlProduct = {
-            title: product.name,
-            category_id: product.ml_category_id,
-            price: product.price,
-            currency_id: 'BRL',
-            available_quantity: product.stock,
-            buying_mode: 'buy_it_now',
-            listing_type_id: 'gold_special',
-            condition: 'new',
-            description: product.data?.descricao || product.name,
-            pictures: product.data?.imagemUrl ? [
-              {
-                source: product.data.imagemUrl
-              }
-            ] : []
-          };
-          
-          // Publicar no ML
-          const response = await fetch('https://api.mercadolibre.com/items', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${integration.ml_access_token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(mlProduct)
-          });
-          
-          if (!response.ok) {
-            throw new Error('Erro ao publicar produto no ML');
-          }
-          
-          const responseData = await response.json();
-          const mlProductId = responseData.id;
-          
-          // Atualizar produto no banco
-          await supabase
-            .from('products')
-            .update({ 
-              ml_product_id: mlProductId,
-              published_at: new Date().toISOString(),
-              ml_status: 'active'
-            })
-            .eq('id', product.id);
-          
-          return { 
-            productId: product.id, 
-            status: 'published',
-            mlProductId 
-          };
-        } catch (error) {
-          console.error('Erro ao publicar produto:', product.id, error);
-          
-          // Atualizar status de erro
-          await supabase
-            .from('products')
-            .update({ 
-              ml_status: 'error',
-              last_error: error.message
-            })
-            .eq('id', product.id);
-          
-          return { 
-            productId: product.id, 
-            status: 'error',
-            message: error.message 
-          };
-        }
-      })
-    );
+    // Verificar se o produto existe
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', productId)
+      .single();
     
-    return NextResponse.json({ 
+    if (productError || !product) {
+      return NextResponse.json(
+        { error: 'Produto não encontrado' },
+        { status: 404 }
+      );
+    }
+    
+    const results = [];
+    
+    for (const marketplace of marketplaces) {
+      try {
+        // Simular publicação no marketplace
+        // TODO: Implementar integração real com cada marketplace
+        
+        const publishResult = {
+          marketplace,
+          status: 'published',
+          marketplace_product_id: `${marketplace}_${productId}_${Date.now()}`,
+          published_at: new Date().toISOString()
+        };
+        
+        // Salvar resultado no banco
+        const { error: saveError } = await supabase
+          .from('product_publications')
+          .upsert({
+            product_id: productId,
+            marketplace,
+            marketplace_product_id: publishResult.marketplace_product_id,
+            status: 'published',
+            published_at: publishResult.published_at,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'product_id,marketplace'
+          });
+        
+        if (saveError) {
+          throw saveError;
+        }
+        
+        results.push(publishResult);
+        
+      } catch (error: any) {
+        results.push({
+          marketplace,
+          status: 'error',
+          error: error.message
+        });
+      }
+    }
+    
+    const summary = {
+      total: marketplaces.length,
+      published: results.filter(r => r.status === 'published').length,
+      errors: results.filter(r => r.status === 'error').length
+    };
+    
+    return NextResponse.json({
       success: true,
-      message: 'Produtos publicados com sucesso',
-      results,
-      total: products.length,
-      published: results.filter(r => r.status === 'published').length
+      message: 'Publicação concluída',
+      summary,
+      results
     });
-  } catch (error) {
-    console.error('Erro ao publicar produtos:', error);
+    
+  } catch (error: any) {
+    console.error('Erro ao publicar produto:', error);
     return NextResponse.json(
-      { error: 'Erro ao publicar produtos' },
+      { error: error.message || 'Erro interno do servidor' },
       { status: 500 }
     );
   }

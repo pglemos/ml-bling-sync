@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
@@ -54,54 +54,48 @@ export async function POST(request: NextRequest) {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              descricao: category.name,
-              idCategoriaPai: null
+              descricao: category.name
             })
           });
           
-          if (!createResponse.ok) {
-            throw new Error('Erro ao criar categoria no Bling');
+          if (createResponse.ok) {
+            const createData = await createResponse.json();
+            
+            // Atualizar categoria com ID do Bling
+            await supabase
+              .from('categories')
+              .update({ bling_id: createData.data.id })
+              .eq('id', category.id);
+            
+            return { ...category, status: 'created', bling_id: createData.data.id };
+          } else {
+            return { ...category, status: 'error', error: 'Erro ao criar no Bling' };
           }
           
-          const createData = await createResponse.json();
-          
-          return { 
-            ...category, 
-            status: 'created',
-            blingId: createData.data.id
-          };
         } catch (error) {
-          console.error('Erro ao sincronizar categoria:', category.name, error);
           return { ...category, status: 'error', error: error.message };
         }
       })
     );
     
-    // Atualizar status no banco
-    await Promise.all(
-      results.map(async (result) => {
-        if (result.status === 'created') {
-          await supabase
-            .from('categories')
-            .update({ 
-              bling_id: result.blingId,
-              sync_status: 'synced',
-              synced_at: new Date().toISOString()
-            })
-            .eq('id', result.id);
-        }
-      })
-    );
+    const summary = {
+      total: results.length,
+      created: results.filter(r => r.status === 'created').length,
+      exists: results.filter(r => r.status === 'exists').length,
+      errors: results.filter(r => r.status === 'error').length
+    };
     
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      message: 'Categorias sincronizadas com sucesso',
+      message: 'Sincronização concluída',
+      summary,
       results
     });
-  } catch (error) {
+    
+  } catch (error: any) {
     console.error('Erro ao sincronizar categorias:', error);
     return NextResponse.json(
-      { error: 'Erro ao sincronizar categorias' },
+      { error: error.message },
       { status: 500 }
     );
   }

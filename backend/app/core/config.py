@@ -48,6 +48,19 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
     REDIS_PASSWORD: Optional[str] = None
+    
+    # Stripe Configuration
+    STRIPE_PUBLISHABLE_KEY: str = "pk_test_..."
+    STRIPE_SECRET_KEY: str = "sk_test_..."
+    STRIPE_WEBHOOK_SECRET: str = "whsec_..."
+    STRIPE_PRICE_LOOKUP_KEY: Optional[str] = None
+    
+    # Billing Configuration
+    DEFAULT_CURRENCY: str = "usd"
+    TRIAL_PERIOD_DAYS: int = 14
+    BILLING_PORTAL_RETURN_URL: str = "http://localhost:3000/billing"
+    CHECKOUT_SUCCESS_URL: str = "http://localhost:3000/billing/success"
+    CHECKOUT_CANCEL_URL: str = "http://localhost:3000/billing/cancel"
     REDIS_DB: int = 0
     
     # External APIs
@@ -92,6 +105,26 @@ class Settings(BaseSettings):
     # Pagination
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
+    
+    # Celery Settings
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    CELERY_TASK_SERIALIZER: str = "json"
+    CELERY_RESULT_SERIALIZER: str = "json"
+    CELERY_ACCEPT_CONTENT: List[str] = ["json"]
+    CELERY_TIMEZONE: str = "America/Sao_Paulo"
+    CELERY_ENABLE_UTC: bool = True
+    CELERY_TASK_SOFT_TIME_LIMIT: int = 300  # 5 minutes
+    CELERY_TASK_TIME_LIMIT: int = 600       # 10 minutes
+    CELERY_TASK_MAX_RETRIES: int = 3
+    CELERY_TASK_DEFAULT_RETRY_DELAY: int = 60  # 1 minute
+    CELERY_WORKER_PREFETCH_MULTIPLIER: int = 1
+    CELERY_WORKER_MAX_TASKS_PER_CHILD: int = 1000
+    CELERY_RESULT_EXPIRES: int = 3600  # 1 hour
+    
+    # Flower (Celery monitoring)
+    FLOWER_PORT: int = 5555
+    FLOWER_BASIC_AUTH: str = "admin:admin123"  # Change in production
     
     class Config:
         env_file = ".env"

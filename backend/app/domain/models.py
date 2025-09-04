@@ -48,8 +48,23 @@ class IntegrationStatus(str, enum.Enum):
     """Integration status enumeration"""
     ACTIVE = "active"
     INACTIVE = "inactive"
+
+class SyncJobStatus(str, enum.Enum):
+    """Sync job status enumeration"""
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
     ERROR = "error"
     TESTING = "testing"
+
+class SupplierTaskStatus(str, enum.Enum):
+    """Supplier task status enumeration"""
+    CREATED = "created"
+    SENT = "sent"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
 
 class ReturnStatus(str, enum.Enum):
     """Return status enumeration"""
@@ -66,14 +81,68 @@ class ReservationStatus(str, enum.Enum):
     EXPIRED = "expired"
     FULFILLED = "fulfilled"
 
+class TenantStatus(str, enum.Enum):
+    """Tenant status enumeration"""
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    SUSPENDED = "suspended"
+    TRIAL = "trial"
+
+# Tenant Model
+class Tenant(Base):
+    """Tenant model for multi-tenancy"""
+    __tablename__ = "tenants"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False, index=True)
+    domain = Column(String(255), unique=True, nullable=True, index=True)
+    status = Column(Enum(TenantStatus), default=TenantStatus.TRIAL, index=True)
+    
+    # Branding settings
+    logo_url = Column(String(500))
+    primary_color = Column(String(7), default="#3B82F6")  # Hex color
+    secondary_color = Column(String(7), default="#1E40AF")
+    accent_color = Column(String(7), default="#10B981")
+    font_family = Column(String(100), default="Inter")
+    
+    # Contact information
+    contact_email = Column(String(255))
+    contact_phone = Column(String(50))
+    address = Column(Text)
+    
+    # Settings
+    settings = Column(JSON, default={})
+    features = Column(JSON, default={})  # Feature flags
+    
+    # Billing
+    plan_id = Column(String(100))  # Stripe plan ID
+    subscription_id = Column(String(100))  # Stripe subscription ID
+    trial_ends_at = Column(DateTime(timezone=True))
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
+    integrations = relationship("Integration", back_populates="tenant", cascade="all, delete-orphan")
+    products = relationship("Product", back_populates="tenant", cascade="all, delete-orphan")
+    orders = relationship("Order", back_populates="tenant", cascade="all, delete-orphan")
+    subscriptions = relationship("Subscription", back_populates="tenant", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<Tenant(id={self.id}, name={self.name}, slug={self.slug})>"
+
 # User and Role Models
 class User(Base):
     """User model for authentication and authorization"""
     __tablename__ = "users"
     
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    username = Column(String(100), unique=True, nullable=False, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    username = Column(String(100), nullable=False, index=True)
     full_name = Column(String(255), nullable=False)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
@@ -83,8 +152,14 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    tenant = relationship("Tenant", back_populates="users")
     roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'email', name='uq_tenant_user_email'),
+        UniqueConstraint('tenant_id', 'username', name='uq_tenant_user_username'),
+    )
     
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, username={self.username})>"
@@ -163,6 +238,7 @@ class Integration(Base):
     __tablename__ = "integrations"
     
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     type = Column(Enum(IntegrationType), nullable=False, index=True)
     status = Column(Enum(IntegrationStatus), default=IntegrationStatus.INACTIVE, index=True)
@@ -174,9 +250,11 @@ class Integration(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    tenant = relationship("Tenant", back_populates="integrations")
     products = relationship("Product", back_populates="integration")
     categories = relationship("Category", back_populates="integration")
     orders = relationship("Order", back_populates="integration")
+    sync_jobs = relationship("SyncJob", back_populates="integration")
     
     def __repr__(self):
         return f"<Integration(id={self.id}, name={self.name}, type={self.type})>"
@@ -213,8 +291,9 @@ class Product(Base):
     __tablename__ = "products"
     
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False, index=True)
     name = Column(String(500), nullable=False, index=True)
-    sku = Column(String(100), unique=True, nullable=False, index=True)
+    sku = Column(String(100), nullable=False, index=True)
     description = Column(Text)
     price = Column(Float, nullable=False)
     cost_price = Column(Float)
@@ -235,6 +314,7 @@ class Product(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    tenant = relationship("Tenant", back_populates="products")
     integration = relationship("Integration", back_populates="products")
     category = relationship("Category", back_populates="products")
     images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
@@ -242,6 +322,7 @@ class Product(Base):
     reservations = relationship("StockReservation", back_populates="product")
     
     __table_args__ = (
+        UniqueConstraint('tenant_id', 'sku', name='uq_tenant_product_sku'),
         Index('idx_product_integration_external', 'integration_id', 'external_id'),
         Index('idx_product_status_synced', 'status', 'is_synced'),
     )
@@ -279,7 +360,8 @@ class Order(Base):
     __tablename__ = "orders"
     
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    order_number = Column(String(100), unique=True, nullable=False, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False, index=True)
+    order_number = Column(String(100), nullable=False, index=True)
     customer_name = Column(String(255), nullable=False)
     customer_email = Column(String(255))
     customer_phone = Column(String(50))
@@ -298,10 +380,12 @@ class Order(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    tenant = relationship("Tenant", back_populates="orders")
     integration = relationship("Integration", back_populates="orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     
     __table_args__ = (
+        UniqueConstraint('tenant_id', 'order_number', name='uq_tenant_order_number'),
         Index('idx_order_integration_external', 'integration_id', 'external_id'),
         Index('idx_order_status_created', 'status', 'created_at'),
     )
@@ -495,3 +579,310 @@ class DashboardMetric(Base):
     __table_args__ = (
         Index('idx_metric_name_period', 'metric_name', 'period', 'period_date'),
     )
+
+# Sync Job Models
+class SyncJob(Base):
+    """Sync job model for tracking synchronization tasks"""
+    __tablename__ = "sync_jobs"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    integration_id = Column(String(36), ForeignKey("integrations.id"), nullable=False)
+    sync_type = Column(String(50), nullable=False, index=True)  # products, inventory, orders
+    status = Column(Enum(SyncJobStatus), default=SyncJobStatus.QUEUED, index=True)
+    priority = Column(String(20), default="normal", index=True)  # low, normal, high, urgent
+    task_id = Column(String(255), index=True)  # Celery task ID
+    progress = Column(Integer, default=0)  # 0-100
+    options = Column(JSON)  # Sync options (limit, offset, etc.)
+    result = Column(JSON)  # Sync results
+    error_message = Column(Text)
+    scheduled_at = Column(DateTime(timezone=True))
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+    user_id = Column(String(36))  # User who initiated the sync
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    integration = relationship("Integration", back_populates="sync_jobs")
+    
+    __table_args__ = (
+        Index('idx_sync_job_integration_status', 'integration_id', 'status'),
+        Index('idx_sync_job_type_status', 'sync_type', 'status'),
+        Index('idx_sync_job_created', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f"<SyncJob(id={self.id}, type={self.sync_type}, status={self.status})>"
+
+# Supplier Order Task Models
+class SupplierOrderTask(Base):
+    """Supplier order task model for managing supplier fulfillment tasks"""
+    __tablename__ = "supplier_order_tasks"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    order_id = Column(String(36), ForeignKey("orders.id"), nullable=False)
+    supplier_sku = Column(String(255), nullable=False, index=True)
+    quantity = Column(Integer, nullable=False)
+    unit_price = Column(Float)
+    total_price = Column(Float)
+    status = Column(Enum(SupplierTaskStatus), default=SupplierTaskStatus.CREATED, index=True)
+    
+    # Shipping address
+    shipping_name = Column(String(255))
+    shipping_address = Column(Text)
+    shipping_city = Column(String(100))
+    shipping_state = Column(String(50))
+    shipping_zip = Column(String(20))
+    shipping_country = Column(String(50))
+    
+    # Supplier information
+    supplier_name = Column(String(255))
+    supplier_email = Column(String(255))
+    supplier_phone = Column(String(50))
+    
+    # Task metadata
+    notes = Column(Text)
+    external_task_id = Column(String(255), index=True)  # ID from supplier system
+    sent_at = Column(DateTime(timezone=True))
+    confirmed_at = Column(DateTime(timezone=True))
+    cancelled_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    order = relationship("Order", backref="supplier_tasks")
+    
+    __table_args__ = (
+        Index('idx_supplier_task_order_status', 'order_id', 'status'),
+        Index('idx_supplier_task_sku', 'supplier_sku'),
+        Index('idx_supplier_task_created', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f"<SupplierOrderTask(id={self.id}, order_id={self.order_id}, sku={self.supplier_sku})>"
+
+# Billing Models
+class PlanStatus(str, Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    ARCHIVED = "archived"
+
+class PlanInterval(str, Enum):
+    MONTH = "month"
+    YEAR = "year"
+
+class SubscriptionStatus(str, Enum):
+    ACTIVE = "active"
+    CANCELED = "canceled"
+    INCOMPLETE = "incomplete"
+    INCOMPLETE_EXPIRED = "incomplete_expired"
+    PAST_DUE = "past_due"
+    TRIALING = "trialing"
+    UNPAID = "unpaid"
+
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELED = "canceled"
+    REFUNDED = "refunded"
+
+class InvoiceStatus(str, Enum):
+    DRAFT = "draft"
+    OPEN = "open"
+    PAID = "paid"
+    VOID = "void"
+    UNCOLLECTIBLE = "uncollectible"
+
+class UsageMetric(str, Enum):
+    API_CALLS = "api_calls"
+    PRODUCTS_SYNCED = "products_synced"
+    ORDERS_PROCESSED = "orders_processed"
+    STORAGE_USED = "storage_used"
+    INTEGRATIONS_ACTIVE = "integrations_active"
+    USERS_ACTIVE = "users_active"
+    WEBHOOKS_SENT = "webhooks_sent"
+
+class Plan(Base):
+    """Billing plan model"""
+    __tablename__ = "plans"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(100), nullable=False, unique=True)
+    description = Column(Text)
+    price_cents = Column(Integer, nullable=False, default=0)
+    interval = Column(Enum(PlanInterval), nullable=False, default=PlanInterval.MONTH)
+    trial_days = Column(Integer, default=0)
+    status = Column(Enum(PlanStatus), default=PlanStatus.ACTIVE, index=True)
+    
+    # Stripe integration
+    stripe_price_id = Column(String(255), unique=True, index=True)
+    
+    # Plan metadata
+    features = Column(JSON)  # Store features as JSON
+    quotas = Column(JSON)    # Store quotas as JSON
+    is_popular = Column(Boolean, default=False)
+    sort_order = Column(Integer, default=0)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    subscriptions = relationship("Subscription", back_populates="plan")
+    
+    __table_args__ = (
+        Index('idx_plan_status_sort', 'status', 'sort_order'),
+        Index('idx_plan_interval_price', 'interval', 'price_cents'),
+    )
+    
+    def __repr__(self):
+        return f"<Plan(id={self.id}, name={self.name}, price={self.price_cents})>"
+
+class Subscription(Base):
+    """Subscription model"""
+    __tablename__ = "subscriptions"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False)
+    plan_id = Column(String(36), ForeignKey("plans.id"), nullable=False)
+    
+    # Stripe integration
+    stripe_subscription_id = Column(String(255), unique=True, index=True)
+    stripe_customer_id = Column(String(255), index=True)
+    
+    # Subscription details
+    status = Column(Enum(SubscriptionStatus), default=SubscriptionStatus.ACTIVE, index=True)
+    current_period_start = Column(DateTime(timezone=True))
+    current_period_end = Column(DateTime(timezone=True))
+    trial_start = Column(DateTime(timezone=True))
+    trial_end = Column(DateTime(timezone=True))
+    canceled_at = Column(DateTime(timezone=True))
+    ended_at = Column(DateTime(timezone=True))
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    tenant = relationship("Tenant", back_populates="subscriptions")
+    plan = relationship("Plan", back_populates="subscriptions")
+    usage_records = relationship("UsageRecord", back_populates="subscription")
+    payments = relationship("Payment", back_populates="subscription")
+    invoices = relationship("Invoice", back_populates="subscription")
+    
+    __table_args__ = (
+        Index('idx_subscription_tenant_status', 'tenant_id', 'status'),
+        Index('idx_subscription_plan_status', 'plan_id', 'status'),
+        Index('idx_subscription_period', 'current_period_start', 'current_period_end'),
+        UniqueConstraint('tenant_id', name='uq_subscription_tenant'),  # One subscription per tenant
+    )
+    
+    def __repr__(self):
+        return f"<Subscription(id={self.id}, tenant_id={self.tenant_id}, status={self.status})>"
+
+class UsageRecord(Base):
+    """Usage tracking model"""
+    __tablename__ = "usage_records"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False)
+    subscription_id = Column(String(36), ForeignKey("subscriptions.id"), nullable=False)
+    
+    # Usage details
+    metric = Column(Enum(UsageMetric), nullable=False, index=True)
+    quantity = Column(Integer, nullable=False, default=0)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    metadata = Column(JSON)  # Additional context
+    
+    # Relationships
+    tenant = relationship("Tenant")
+    subscription = relationship("Subscription", back_populates="usage_records")
+    
+    __table_args__ = (
+        Index('idx_usage_tenant_metric_time', 'tenant_id', 'metric', 'timestamp'),
+        Index('idx_usage_subscription_metric', 'subscription_id', 'metric'),
+        Index('idx_usage_metric_timestamp', 'metric', 'timestamp'),
+    )
+    
+    def __repr__(self):
+        return f"<UsageRecord(id={self.id}, metric={self.metric}, quantity={self.quantity})>"
+
+class Payment(Base):
+    """Payment model"""
+    __tablename__ = "payments"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False)
+    subscription_id = Column(String(36), ForeignKey("subscriptions.id"), nullable=False)
+    
+    # Payment details
+    amount_cents = Column(Integer, nullable=False)
+    currency = Column(String(3), default="usd")
+    status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING, index=True)
+    
+    # Stripe integration
+    stripe_payment_intent_id = Column(String(255), unique=True, index=True)
+    
+    # Payment metadata
+    failure_reason = Column(Text)
+    paid_at = Column(DateTime(timezone=True))
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    tenant = relationship("Tenant")
+    subscription = relationship("Subscription", back_populates="payments")
+    
+    __table_args__ = (
+        Index('idx_payment_tenant_status', 'tenant_id', 'status'),
+        Index('idx_payment_subscription_status', 'subscription_id', 'status'),
+        Index('idx_payment_created', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f"<Payment(id={self.id}, amount={self.amount_cents}, status={self.status})>"
+
+class Invoice(Base):
+    """Invoice model"""
+    __tablename__ = "invoices"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False)
+    subscription_id = Column(String(36), ForeignKey("subscriptions.id"), nullable=False)
+    
+    # Invoice details
+    invoice_number = Column(String(100), unique=True, nullable=False, index=True)
+    subtotal_cents = Column(Integer, nullable=False, default=0)
+    tax_cents = Column(Integer, default=0)
+    total_cents = Column(Integer, nullable=False, default=0)
+    currency = Column(String(3), default="usd")
+    status = Column(Enum(InvoiceStatus), default=InvoiceStatus.DRAFT, index=True)
+    
+    # Stripe integration
+    stripe_invoice_id = Column(String(255), unique=True, index=True)
+    
+    # Invoice metadata
+    line_items = Column(JSON)  # Store line items as JSON
+    due_date = Column(DateTime(timezone=True))
+    paid_at = Column(DateTime(timezone=True))
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    tenant = relationship("Tenant")
+    subscription = relationship("Subscription", back_populates="invoices")
+    
+    __table_args__ = (
+        Index('idx_invoice_tenant_status', 'tenant_id', 'status'),
+        Index('idx_invoice_subscription_status', 'subscription_id', 'status'),
+        Index('idx_invoice_due_date', 'due_date'),
+        Index('idx_invoice_created', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f"<Invoice(id={self.id}, number={self.invoice_number}, total={self.total_cents})>"

@@ -23,8 +23,13 @@ from app.infra.websockets import init_websockets
 from app.api.routers import (
     auth, users, products, orders, integrations, 
     categories, kits, returns, reservations, 
-    financial, catalog, notifications, dashboard
+    financial, catalog, notifications, dashboard, sync
 )
+from app.api.v1 import billing, security, observability
+from app.core.usage_tracking import UsageTrackingMiddleware
+from app.core.security_middleware import SecurityMiddleware, add_security_middleware
+from app.core.structured_logging import configure_logging
+from app.core.metrics import update_system_metrics_task, MetricsMiddleware, get_metrics_collector
 
 # Configure logging
 logging.basicConfig(
@@ -41,8 +46,17 @@ async def lifespan(app: FastAPI):
     """Application lifespan management"""
     # Startup
     logger.info("🚀 Starting ML-Bling Sync API...")
+    
+    # Configure structured logging
+    configure_logging()
+    
     await init_db()
     await init_websockets()
+    
+    # Start system metrics collection task
+    import asyncio
+    asyncio.create_task(update_system_metrics_task())
+    
     logger.info("✅ API started successfully")
     
     yield
@@ -77,6 +91,15 @@ app.add_middleware(
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Add security middleware
+add_security_middleware(app)
+
+# Metrics middleware
+app.add_middleware(MetricsMiddleware, metrics_collector=get_metrics_collector())
+
+# Usage tracking middleware
+app.add_middleware(UsageTrackingMiddleware)
 
 # Request ID middleware for correlation
 @app.middleware("http")
@@ -185,6 +208,10 @@ app.include_router(financial.router, prefix="/api/financial", tags=["Financial"]
 app.include_router(catalog.router, prefix="/api/catalog", tags=["Catalog"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(sync.router, prefix="/api/sync", tags=["Synchronization"])
+app.include_router(billing.router, prefix="/api/v1/billing", tags=["Billing"])
+app.include_router(security.router, prefix="/api/v1/security", tags=["Security"])
+app.include_router(observability.router, prefix="/api/v1/observability", tags=["Observability"])
 
 # Root endpoint
 @app.get("/")

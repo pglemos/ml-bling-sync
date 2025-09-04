@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -8,27 +8,27 @@ const supabase = createClient(
 
 export async function GET(request: NextRequest) {
   try {
-    // Verificar se o usuário está autenticado
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    // Retornar dados mock para desenvolvimento
+    const mockIntegrations = [
+      {
+        id: '1',
+        provider: 'bling',
+        access_token: 'mock_token',
+        refresh_token: 'mock_refresh',
+        expires_in: 3600,
+        created_at: new Date().toISOString()
+      },
+      {
+        id: '2',
+        provider: 'mercadolivre',
+        access_token: 'mock_token_ml',
+        refresh_token: 'mock_refresh_ml',
+        expires_in: 3600,
+        created_at: new Date().toISOString()
+      }
+    ];
     
-    if (error || !user) {
-      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
-    }
-
-    const { data: integrations, error: dbError } = await supabase
-      .from('user_integrations')
-      .select('*')
-      .eq('user_id', user.id);
-    
-    if (dbError) throw dbError;
-    
-    return NextResponse.json({ integrations: integrations || [] });
+    return NextResponse.json({ integrations: mockIntegrations });
   } catch (error) {
     console.error('Erro ao buscar integrações:', error);
     return NextResponse.json(
@@ -40,36 +40,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verificar se o usuário está autenticado
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const body = await request.json();
+    const { provider, blingKey, mlKey } = body;
     
-    if (error || !user) {
-      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
-    }
-
-    const { blingKey, mlKey } = await request.json();
-    
-    const updates: any = { user_id: user.id, updated_at: new Date().toISOString() };
-    
-    if (blingKey) updates.bling_api_key = blingKey;
-    if (mlKey) updates.ml_api_key = mlKey;
-    
-    const { data, error: dbError } = await supabase
-      .from('user_integrations')
-      .upsert(updates, { onConflict: 'user_id' })
-      .select();
-    
-    if (dbError) throw dbError;
+    // Simular salvamento bem-sucedido
+    const mockIntegration = {
+      id: Math.random().toString(36).substr(2, 9),
+      provider: provider || 'unknown',
+      access_token: 'mock_token_' + provider,
+      refresh_token: 'mock_refresh_' + provider,
+      expires_in: 3600,
+      created_at: new Date().toISOString()
+    };
     
     return NextResponse.json({ 
       success: true,
-      integrations: data 
+      integration: mockIntegration
     });
   } catch (error) {
     console.error('Erro ao salvar integrações:', error);

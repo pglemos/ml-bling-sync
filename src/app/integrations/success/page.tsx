@@ -27,7 +27,7 @@ export default function IntegrationSuccess() {
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
-      <div className="bg-white p-10 rounded-2xl shadow-lg max-w-md w-full text-center">
+      <div className="bg-surface p-10 rounded-2xl shadow-lg max-w-md w-full text-center">
         {integration && (
           <div className="flex flex-col items-center">
             <div

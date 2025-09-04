@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/shared/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/shared/card";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -60,7 +60,7 @@ export default function HomePage() {
             <Image src="/bling-logo.png" width={80} height={80} alt="SynVolt" />
           </div>
           <CardTitle className="text-3xl font-bold text-sky-700">SynVolt Saas</CardTitle>
-          <p className="text-gray-600 mt-2">
+          <p className="text-muted mt-2">
             Plataforma de integração entre Mercado Livre e Bling
           </p>
         </CardHeader>
@@ -73,7 +73,7 @@ export default function HomePage() {
               <Button variant="outline" className="w-full">Criar conta</Button>
             </Link>
           </div>
-          <p className="text-center text-sm text-gray-500 mt-4">
+          <p className="text-center text-sm text-muted mt-4">
             Ao continuar, você concorda com nossos termos de serviço e política de privacidade.
           </p>
         </CardContent>

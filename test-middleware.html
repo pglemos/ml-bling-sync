@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste Middleware</title>
+</head>
+<body>
+    <h1>Teste de Middleware</h1>
+    <p>Clique nos links abaixo para testar o middleware:</p>
+    <ul>
+        <li><a href="http://localhost:3000/admin" target="_blank">Acessar /admin (deve redirecionar para login se não autenticado)</a></li>
+        <li><a href="http://localhost:3000/dashboard" target="_blank">Acessar /dashboard (página normal)</a></li>
+        <li><a href="http://localhost:3000/login" target="_blank">Acessar /login</a></li>
+    </ul>
+    
+    <h2>Instruções:</h2>
+    <ol>
+        <li>Primeiro, faça login como usuário "Logista" (João Silva)</li>
+        <li>Depois tente acessar /admin - deve ser redirecionado para /dashboard</li>
+        <li>Faça login como usuário "Admin" e tente acessar /admin - deve conseguir</li>
+    </ol>
+</body>
+</html>

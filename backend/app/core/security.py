@@ -10,6 +10,10 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 import logging
+import re
+import html
+import hashlib
+import secrets
 
 from app.core.config import settings
 from app.infra.database import get_db
@@ -283,3 +287,170 @@ def check_rate_limit(key: str, limit: int = 100, window: int = 60):
             )
         return True
     return rate_limit_checker
+
+class SecurityValidator:
+    """Security validation and sanitization utilities"""
+    
+    # Common injection patterns
+    SQL_INJECTION_PATTERNS = [
+        r"('|(\-\-)|(;)|(\||\|)|(\*|\*))",
+        r"(union|select|insert|delete|update|drop|create|alter|exec|execute)",
+        r"(script|javascript|vbscript|onload|onerror|onclick)",
+        r"(<|>|&lt;|&gt;)"
+    ]
+    
+    XSS_PATTERNS = [
+        r"<script[^>]*>.*?</script>",
+        r"javascript:",
+        r"on\w+\s*=",
+        r"<iframe[^>]*>.*?</iframe>",
+        r"<object[^>]*>.*?</object>",
+        r"<embed[^>]*>.*?</embed>"
+    ]
+    
+    # Safe characters for different contexts
+    ALPHANUMERIC = re.compile(r'^[a-zA-Z0-9]+$')
+    ALPHANUMERIC_UNDERSCORE = re.compile(r'^[a-zA-Z0-9_]+$')
+    EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+    UUID_PATTERN = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    
+    @classmethod
+    def sanitize_string(cls, value: str, max_length: int = 1000) -> str:
+        """Sanitize string input"""
+        if not isinstance(value, str):
+            return str(value)
+        
+        # Truncate if too long
+        value = value[:max_length]
+        
+        # HTML escape
+        value = html.escape(value)
+        
+        # Remove null bytes
+        value = value.replace('\x00', '')
+        
+        return value.strip()
+    
+    @classmethod
+    def validate_sql_safe(cls, value: str) -> bool:
+        """Check if string is safe from SQL injection"""
+        if not isinstance(value, str):
+            return False
+        
+        value_lower = value.lower()
+        
+        for pattern in cls.SQL_INJECTION_PATTERNS:
+            if re.search(pattern, value_lower, re.IGNORECASE):
+                logger.warning(f"Potential SQL injection detected: {pattern}")
+                return False
+        
+        return True
+    
+    @classmethod
+    def validate_xss_safe(cls, value: str) -> bool:
+        """Check if string is safe from XSS"""
+        if not isinstance(value, str):
+            return False
+        
+        for pattern in cls.XSS_PATTERNS:
+            if re.search(pattern, value, re.IGNORECASE):
+                logger.warning(f"Potential XSS detected: {pattern}")
+                return False
+        
+        return True
+    
+    @classmethod
+    def validate_email(cls, email: str) -> bool:
+        """Validate email format"""
+        if not isinstance(email, str) or len(email) > 254:
+            return False
+        return bool(cls.EMAIL_PATTERN.match(email))
+    
+    @classmethod
+    def validate_uuid(cls, uuid_str: str) -> bool:
+        """Validate UUID format"""
+        if not isinstance(uuid_str, str):
+            return False
+        return bool(cls.UUID_PATTERN.match(uuid_str.lower()))
+    
+    @classmethod
+    def validate_alphanumeric(cls, value: str, allow_underscore: bool = False) -> bool:
+        """Validate alphanumeric string"""
+        if not isinstance(value, str):
+            return False
+        
+        pattern = cls.ALPHANUMERIC_UNDERSCORE if allow_underscore else cls.ALPHANUMERIC
+        return bool(pattern.match(value))
+    
+    @classmethod
+    def sanitize_filename(cls, filename: str) -> str:
+        """Sanitize filename"""
+        if not isinstance(filename, str):
+            filename = str(filename)
+        
+        # Remove path separators and dangerous characters
+        filename = re.sub(r'[<>:"/\\|?*]', '', filename)
+        
+        # Remove control characters
+        filename = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', filename)
+        
+        # Limit length
+        filename = filename[:255]
+        
+        # Ensure it's not empty or just dots
+        if not filename or filename in ['.', '..']:
+            filename = 'file'
+        
+        return filename
+
+class SecurityHeaders:
+    """Security headers utilities"""
+    
+    @classmethod
+    def get_security_headers(cls) -> Dict[str, str]:
+        """Get recommended security headers"""
+        return {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "X-XSS-Protection": "1; mode=block",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Content-Security-Policy": (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: https:; "
+                "font-src 'self' https:; "
+                "connect-src 'self' https:; "
+                "frame-ancestors 'none';"
+            ),
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+        }
+
+def add_security_headers(response):
+    """Add security headers to response"""
+    headers = SecurityHeaders.get_security_headers()
+    for key, value in headers.items():
+        response.headers[key] = value
+    return response
+
+def get_client_ip(request) -> str:
+    """Get client IP address from request"""
+    # Check for forwarded headers
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip
+    
+    return request.client.host if request.client else "unknown"
+
+def hash_identifier(identifier: str) -> str:
+    """Hash identifier for privacy"""
+    return hashlib.sha256(identifier.encode()).hexdigest()[:16]
+
+def generate_secure_token(length: int = 32) -> str:
+    """Generate cryptographically secure random token"""
+    return secrets.token_urlsafe(length)

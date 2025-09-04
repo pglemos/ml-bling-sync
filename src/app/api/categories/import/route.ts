@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
@@ -50,10 +50,11 @@ export async function POST(request: NextRequest) {
       message: 'Categorias importadas com sucesso',
       count: categories.length
     });
-  } catch (error) {
+    
+  } catch (error: any) {
     console.error('Erro ao importar categorias:', error);
     return NextResponse.json(
-      { error: 'Erro ao importar categorias' },
+      { error: error.message },
       { status: 500 }
     );
   }

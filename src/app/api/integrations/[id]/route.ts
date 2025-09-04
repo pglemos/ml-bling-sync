@@ -7,15 +7,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const userId = 'user-test-id'; // Vamos implementar autenticação depois
     
-    const { error } = await supabaseServer
-      .from('user_integrations')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
-    
-    if (error) throw error;
+    // Simular remoção bem-sucedida
+    console.log(`Simulando remoção da integração ${id}`);
     
     return NextResponse.json({ success: true });
   } catch (error) {

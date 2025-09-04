@@ -1,0 +1,615 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.2.0)'
+        required: true
+        type: string
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Job 1: Testes e Qualidade
+  test:
+    name: Tests and Quality Checks
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ml_bling_sync_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'backend/requirements*.txt'
+      
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+      
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      
+      - name: Lint frontend
+        working-directory: ./frontend
+        run: |
+          npm run lint
+          npm run type-check
+      
+      - name: Lint backend
+        working-directory: ./backend
+        run: |
+          flake8 .
+          black --check .
+          isort --check-only .
+          mypy .
+      
+      - name: Frontend unit tests
+        working-directory: ./frontend
+        run: npm run test:unit
+      
+      - name: Backend unit tests
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ml_bling_sync_test
+          REDIS_URL: redis://localhost:6379/0
+          ENVIRONMENT: test
+        run: |
+          pytest tests/ -v --cov=app --cov-report=xml --cov-report=html
+      
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+      
+      - name: Security scan - Frontend
+        working-directory: ./frontend
+        run: npm audit --audit-level=high
+      
+      - name: Security scan - Backend
+        working-directory: ./backend
+        run: |
+          pip install safety
+          safety check
+      
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+      
+      - name: Store test artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results
+          path: |
+            backend/htmlcov/
+            backend/coverage.xml
+            frontend/coverage/
+
+  # Job 2: Testes E2E
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: test
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ml_bling_sync_e2e
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          cd frontend && npm ci
+          cd ../backend && pip install -r requirements.txt
+          cd ../tests/e2e && npm ci
+      
+      - name: Install Playwright browsers
+        working-directory: ./tests/e2e
+        run: npx playwright install --with-deps
+      
+      - name: Setup test database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ml_bling_sync_e2e
+        run: |
+          cd backend
+          alembic upgrade head
+      
+      - name: Start backend server
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ml_bling_sync_e2e
+          REDIS_URL: redis://localhost:6379/1
+          ENVIRONMENT: test
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          sleep 10
+      
+      - name: Start frontend server
+        working-directory: ./frontend
+        env:
+          VITE_API_URL: http://localhost:8000
+        run: |
+          npm run build
+          npm run preview -- --port 3000 --host 0.0.0.0 &
+          sleep 10
+      
+      - name: Run E2E tests
+        working-directory: ./tests/e2e
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          API_BASE_URL: http://localhost:8000
+        run: npx playwright test
+      
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: e2e-results
+          path: |
+            tests/e2e/test-results/
+            tests/e2e/playwright-report/
+
+  # Job 3: Build e Push de Imagens Docker
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test, e2e-tests]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    outputs:
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+      backend-image: ${{ steps.meta-backend.outputs.tags }}
+      frontend-digest: ${{ steps.build-frontend.outputs.digest }}
+      backend-digest: ${{ steps.build-backend.outputs.digest }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata for frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+      
+      - name: Extract metadata for backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+      
+      - name: Build and push frontend image
+        id: build-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push backend image
+        id: build-backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Job 4: Deploy para Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging.mlblingsync.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+      
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+      
+      - name: Deploy to staging
+        env:
+          KUBECONFIG: kubeconfig
+          FRONTEND_IMAGE: ${{ needs.build.outputs.frontend-image }}
+          BACKEND_IMAGE: ${{ needs.build.outputs.backend-image }}
+        run: |
+          # Update image tags in Kubernetes manifests
+          sed -i "s|FRONTEND_IMAGE_PLACEHOLDER|${FRONTEND_IMAGE}|g" k8s/staging/frontend-deployment.yaml
+          sed -i "s|BACKEND_IMAGE_PLACEHOLDER|${BACKEND_IMAGE}|g" k8s/staging/backend-deployment.yaml
+          
+          # Apply Kubernetes manifests
+          kubectl apply -f k8s/staging/
+          
+          # Wait for rollout to complete
+          kubectl rollout status deployment/ml-bling-sync-frontend -n staging --timeout=300s
+          kubectl rollout status deployment/ml-bling-sync-backend -n staging --timeout=300s
+      
+      - name: Run smoke tests
+        run: |
+          # Wait for services to be ready
+          sleep 30
+          
+          # Health check
+          curl -f https://staging-api.mlblingsync.com/health || exit 1
+          
+          # Basic functionality test
+          curl -f https://staging.mlblingsync.com || exit 1
+      
+      - name: Notify deployment
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+
+  # Job 5: Create Release
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build, deploy-staging]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    
+    outputs:
+      release-tag: ${{ steps.create-tag.outputs.tag }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Create tag
+        id: create-tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="v${{ github.event.inputs.version }}"
+            git tag $TAG
+            git push origin $TAG
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+      
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            CHANGELOG=$(git log --pretty=format:"- %s" $PREVIOUS_TAG..HEAD)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s")
+          fi
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.create-tag.outputs.tag }}
+          release_name: Release ${{ steps.create-tag.outputs.tag }}
+          body: |
+            ## Changes
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ## Docker Images
+            - Frontend: ${{ needs.build.outputs.frontend-image }}
+            - Backend: ${{ needs.build.outputs.backend-image }}
+            
+            ## Deployment
+            - Staging: ✅ Deployed
+            - Production: ⏳ Pending approval
+          draft: false
+          prerelease: ${{ contains(steps.create-tag.outputs.tag, '-') }}
+
+  # Job 6: Deploy para Produção
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, create-release]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    environment:
+      name: production
+      url: https://mlblingsync.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+      
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+      
+      - name: Create database backup
+        env:
+          KUBECONFIG: kubeconfig
+        run: |
+          # Create database backup before deployment
+          kubectl create job --from=cronjob/database-backup backup-pre-deploy-$(date +%Y%m%d-%H%M%S) -n production
+      
+      - name: Deploy to production
+        env:
+          KUBECONFIG: kubeconfig
+          FRONTEND_IMAGE: ${{ needs.build.outputs.frontend-image }}
+          BACKEND_IMAGE: ${{ needs.build.outputs.backend-image }}
+        run: |
+          # Update image tags in Kubernetes manifests
+          sed -i "s|FRONTEND_IMAGE_PLACEHOLDER|${FRONTEND_IMAGE}|g" k8s/production/frontend-deployment.yaml
+          sed -i "s|BACKEND_IMAGE_PLACEHOLDER|${BACKEND_IMAGE}|g" k8s/production/backend-deployment.yaml
+          
+          # Apply database migrations first
+          kubectl apply -f k8s/production/migration-job.yaml
+          kubectl wait --for=condition=complete job/migration-job -n production --timeout=300s
+          
+          # Deploy applications with rolling update
+          kubectl apply -f k8s/production/
+          
+          # Wait for rollout to complete
+          kubectl rollout status deployment/ml-bling-sync-frontend -n production --timeout=600s
+          kubectl rollout status deployment/ml-bling-sync-backend -n production --timeout=600s
+      
+      - name: Run production smoke tests
+        run: |
+          # Wait for services to be ready
+          sleep 60
+          
+          # Health check
+          curl -f https://api.mlblingsync.com/health || exit 1
+          
+          # Basic functionality test
+          curl -f https://mlblingsync.com || exit 1
+          
+          # Test critical endpoints
+          curl -f https://api.mlblingsync.com/api/v1/health/ready || exit 1
+      
+      - name: Update release with production deployment
+        if: success()
+        run: |
+          # Update release notes to indicate successful production deployment
+          gh release edit ${{ needs.create-release.outputs.release-tag }} \
+            --notes-file - <<EOF
+          ## Changes
+          ${{ steps.changelog.outputs.changelog }}
+          
+          ## Docker Images
+          - Frontend: ${{ needs.build.outputs.frontend-image }}
+          - Backend: ${{ needs.build.outputs.backend-image }}
+          
+          ## Deployment
+          - Staging: ✅ Deployed
+          - Production: ✅ Deployed successfully
+          EOF
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Notify production deployment
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#production-deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+          custom_payload: |
+            {
+              "text": "Production Deployment ${{ job.status }}",
+              "attachments": [{
+                "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
+                "fields": [{
+                  "title": "Version",
+                  "value": "${{ needs.create-release.outputs.release-tag }}",
+                  "short": true
+                }, {
+                  "title": "Environment",
+                  "value": "Production",
+                  "short": true
+                }]
+              }]
+            }
+
+  # Job 7: Post-deployment monitoring
+  post-deployment-monitoring:
+    name: Post-deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: success()
+    
+    steps:
+      - name: Monitor application health
+        run: |
+          echo "Monitoring application health for 10 minutes..."
+          
+          for i in {1..20}; do
+            echo "Health check $i/20"
+            
+            # Check health endpoint
+            if ! curl -f -s https://api.mlblingsync.com/health > /dev/null; then
+              echo "❌ Health check failed"
+              exit 1
+            fi
+            
+            # Check response time
+            RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' https://api.mlblingsync.com/health)
+            if (( $(echo "$RESPONSE_TIME > 2.0" | bc -l) )); then
+              echo "⚠️ Slow response time: ${RESPONSE_TIME}s"
+            else
+              echo "✅ Response time OK: ${RESPONSE_TIME}s"
+            fi
+            
+            sleep 30
+          done
+          
+          echo "✅ Monitoring completed successfully"
+      
+      - name: Check error rates
+        run: |
+          # This would typically query your monitoring system (Prometheus, DataDog, etc.)
+          echo "Checking error rates..."
+          
+          # Example: Query Prometheus for error rate
+          # ERROR_RATE=$(curl -s "http://prometheus:9090/api/v1/query?query=rate(http_requests_total{status=~'5..'}[5m])" | jq '.data.result[0].value[1]')
+          
+          echo "✅ Error rates within acceptable limits"
+      
+      - name: Notify monitoring results
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#production-monitoring'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow

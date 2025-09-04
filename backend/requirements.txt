@@ -30,6 +30,9 @@ aioredis==2.0.1
 # Background Tasks & Queues
 celery==5.3.4
 flower==2.0.1
+django-celery-beat==2.5.0
+kombu==5.3.4
+billiard==4.2.0
 
 # File Upload & Storage
 python-magic==0.4.27

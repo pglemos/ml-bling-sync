@@ -2,11 +2,11 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/components/use-toast";
+import { Button } from "@/components/shared/button";
+import { Input } from "@/components/shared/input";
+import { Label } from "@/components/shared/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/shared/card";
+import { useToast } from "@/components/shared/use-toast";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
